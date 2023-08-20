@@ -91,8 +91,6 @@ target_link_libraries(implot PRIVATE imgui)
 
 add_executable(mechanisms
         src/main.cpp
-        src/context.cpp src/context.hpp
-        src/application.cpp src/application.hpp
 )
 target_include_directories(mechanisms SYSTEM PRIVATE ${eigen_SOURCE_DIR})
 target_compile_features(mechanisms PRIVATE cxx_std_20)
