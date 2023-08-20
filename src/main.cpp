@@ -14,6 +14,8 @@
 
 #include <GLFW/glfw3.h>
 
+#include <Eigen/Dense>
+
 #include <cstdlib>
 #include <iostream>
 #include <stdexcept>
@@ -43,13 +45,67 @@ Scope_exit(F &&) -> Scope_exit<F>;
 
 #define SCOPE_EXIT(f) const Scope_exit CONCAT(scope_exit_, __LINE__)(f)
 
+void plot_matrix(const char *title_id, const Eigen::MatrixXf &matrix)
+{
+    const auto rows {static_cast<int>(matrix.rows())};
+    const auto cols {static_cast<int>(matrix.cols())};
+
+    const auto region_size {ImGui::GetContentRegionAvail()};
+    if (region_size.x <= 0.0f || region_size.y <= 0.0f)
+    {
+        return;
+    }
+    const auto matrix_aspect_ratio {static_cast<float>(cols) /
+                                    static_cast<float>(rows)};
+    const auto region_aspect_ratio {region_size.x / region_size.y};
+    const auto cursor_pos {ImGui::GetCursorPos()};
+    auto width {region_size.x};
+    auto height {region_size.y};
+    auto x {cursor_pos.x};
+    auto y {cursor_pos.y};
+    if (matrix_aspect_ratio >= region_aspect_ratio)
+    {
+        height = width / matrix_aspect_ratio;
+        y += (region_size.y - height) * 0.5f;
+    }
+    else
+    {
+        width = height * matrix_aspect_ratio;
+        x += (region_size.x - width) * 0.5f;
+    }
+    ImGui::SetCursorPos({x, y});
+
+    ImPlot::PushColormap(ImPlotColormap_Jet);
+    if (ImPlot::BeginPlot(title_id, {width, height}))
+    {
+        ImPlot::SetupAxes(nullptr,
+                          nullptr,
+                          ImPlotAxisFlags_NoDecorations,
+                          ImPlotAxisFlags_NoDecorations);
+        ImPlot::SetupAxesLimits(0, 1, 0, 1, ImPlotCond_Always);
+        ImPlot::PlotHeatmap(
+            "##heatmap", matrix.data(), rows, cols, 0, 0, nullptr);
+        ImPlot::EndPlot();
+    }
+    ImPlot::PopColormap();
+}
+
 void update()
 {
     ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
 
-    ImGui::ShowDemoWindow();
-
     ImPlot::ShowDemoWindow();
+
+    constexpr auto rows {5};
+    constexpr auto cols {10};
+    Eigen::MatrixXf matrix {Eigen::VectorXf::LinSpaced(rows * cols, 0.0f, 1.0f)
+                                .reshaped(rows, cols)};
+
+    if (ImGui::Begin("Test window"))
+    {
+        plot_matrix("##matrix_plot", matrix);
+    }
+    ImGui::End();
 }
 
 } // namespace
@@ -113,6 +169,9 @@ int main()
             return EXIT_FAILURE;
         }
         SCOPE_EXIT(ImGui_ImplOpenGL3_Shutdown);
+
+        ImPlot::CreateContext();
+        SCOPE_EXIT([] { ImPlot::DestroyContext(); });
 
         while (!glfwWindowShouldClose(window))
         {
