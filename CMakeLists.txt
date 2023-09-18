@@ -25,6 +25,13 @@ include(${CPM_DOWNLOAD_LOCATION})
 
 
 find_package(OpenGL REQUIRED)
+
+CPMAddPackage(
+        GITLAB_REPOSITORY libeigen/eigen
+        GIT_TAG 3.4.0
+        DOWNLOAD_ONLY YES
+)
+
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -32,25 +39,24 @@ CPMAddPackage(
         GITHUB_REPOSITORY glfw/glfw
         GIT_TAG 3.3.8
 )
+
 CPMAddPackage(
         GITHUB_REPOSITORY ocornut/imgui
         GIT_TAG v1.89.8-docking
         DOWNLOAD_ONLY YES
 )
+
 CPMAddPackage(
         GITHUB_REPOSITORY epezent/implot
         GIT_TAG v0.15
         DOWNLOAD_ONLY YES
 )
-CPMAddPackage(
-        GITLAB_REPOSITORY libeigen/eigen
-        GIT_TAG 3.4.0
-        DOWNLOAD_ONLY YES
-)
 
 
 #@formatter:off
-add_compile_definitions(IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/imgui_config.h")
+add_compile_definitions(
+        IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/imgui_config.h"
+)
 #@formatter:on
 add_library(imgui STATIC
         ${imgui_SOURCE_DIR}/imgui.cpp
@@ -63,7 +69,7 @@ add_library(imgui STATIC
         ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
         ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
 )
-target_include_directories(imgui
+target_include_directories(imgui SYSTEM
         PRIVATE
         src
         PUBLIC
@@ -80,7 +86,7 @@ add_library(implot STATIC
         ${implot_SOURCE_DIR}/implot_items.cpp
         ${implot_SOURCE_DIR}/implot_demo.cpp
 )
-target_include_directories(implot
+target_include_directories(implot SYSTEM
         PUBLIC
         ${implot_SOURCE_DIR}
         PRIVATE
@@ -91,9 +97,15 @@ target_link_libraries(implot PRIVATE imgui)
 
 add_executable(mechanisms
         src/main.cpp
+        src/application.cpp src/application.hpp
+        src/fea.cpp src/fea.hpp
 )
 target_include_directories(mechanisms SYSTEM PRIVATE ${eigen_SOURCE_DIR})
 target_compile_features(mechanisms PRIVATE cxx_std_20)
+target_compile_definitions(mechanisms PRIVATE
+        EIGEN_NO_AUTOMATIC_RESIZING
+        EIGEN_RUNTIME_NO_MALLOC
+)
 target_link_libraries(mechanisms PRIVATE
         OpenGL::GL
         glfw
@@ -104,6 +116,7 @@ target_link_libraries(mechanisms PRIVATE
 
 set(CLANG_OPTIONS
         -march=native
+        -ffast-math
         -Wall
         -Wextra
         -Wshadow

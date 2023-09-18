@@ -1,7 +1,7 @@
 # mechanisms
 
 This project is developed as a personal learning tool for the implementation of
-stress-strain FEM analysis, topology optimization, and other topics related to
+stress-strain FEA, topology optimization, and other topics related to
 compliant and rigid mechanisms.
 
 ## Build
@@ -18,10 +18,10 @@ cmake --build build --target mechanisms
 
 ## Dependencies
 
+- [Eigen](https://gitlab.com/libeigen/eigen)
 - [GLFW](https://github.com/glfw/glfw)
 - [Dear ImGui](https://github.com/ocornut/imgui)
 - [Implot](https://github.com/epezent/implot)
-- [Eigen](https://gitlab.com/libeigen/eigen)
 
 ## References
 
