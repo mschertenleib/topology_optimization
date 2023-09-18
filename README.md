@@ -25,6 +25,11 @@ cmake --build build --target mechanisms
 
 ## References
 
+- F. Ferrari and O. Sigmund, "A new generation 99 line Matlab code for
+  compliance topology optimization and its extension to 3D", _Structural and
+  Multidisciplinary Optimization_, vol. 62, pp. 2211–2228, 2020,
+  doi: https://doi.org/10.1007/s00158-020-02629-w.
+
 - Q. Xia and T. Shi, "Topology optimization of compliant mechanism and its
   support through a level set method", _Computer Methods in Applied Mechanics
   and Engineering_, vol. 305, pp. 359-375, 2016,
