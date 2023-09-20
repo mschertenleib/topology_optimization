@@ -116,7 +116,6 @@ target_link_libraries(mechanisms PRIVATE
 
 set(CLANG_OPTIONS
         -march=native
-        -ffast-math
         -Wall
         -Wextra
         -Wshadow

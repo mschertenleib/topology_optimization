@@ -7,28 +7,6 @@
 namespace
 {
 
-template <typename Scalar, int Rows, int Cols>
-void print(const Eigen::Matrix<Scalar, Rows, Cols> &matrix)
-{
-    std::cout << "Dense [" << matrix.rows() << " x " << matrix.cols() << "]\n";
-    std::cout << matrix << '\n';
-}
-
-template <typename Scalar>
-void print(const Eigen::SparseMatrix<Scalar> &matrix)
-{
-    std::cout << "Sparse Matrix [" << matrix.rows() << " x " << matrix.cols()
-              << "]\n";
-    std::cout << matrix << '\n';
-}
-
-template <typename Scalar>
-void print(const Eigen::SparseVector<Scalar> &vector)
-{
-    std::cout << "Sparse Vector [" << vector.rows() << "]\n";
-    std::cout << vector << '\n';
-}
-
 // FIXME: this is temporary and not very safe
 // Assumes all elements of b are contained in a
 Eigen::VectorXi set_difference(const Eigen::VectorXi &a,
@@ -142,7 +120,7 @@ FEA_problem fea_init(int num_elements_x, int num_elements_y)
     problem.free_dofs = set_difference(all_dofs, fixed_dofs);
 
     problem.forces.resize(num_dofs);
-    problem.forces.coeffRef(num_dofs_per_node * node_indices(0, 0) + 1) = -1.0f;
+    problem.forces.insert(num_dofs_per_node * node_indices(0, 0) + 1) = -1.0f;
 
     return problem;
 }
@@ -183,6 +161,13 @@ Eigen::VectorXf fea_solve(const FEA_problem &problem)
     if (solver.info() != Eigen::Success)
     {
         throw std::runtime_error("Solving failed");
+    }
+
+    if (displacements.maxCoeff() > 15.0f || displacements.minCoeff() < -50.0f)
+    {
+        std::cout << "Unexpected displacements in range ["
+                  << displacements.minCoeff() << ", "
+                  << displacements.maxCoeff() << "]\n";
     }
 
     return displacements;
