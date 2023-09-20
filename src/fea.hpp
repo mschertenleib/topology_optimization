@@ -17,7 +17,7 @@ struct FEA_problem
     Eigen::Vector<float, 36> element_stiffness_matrix_values;
     Eigen::VectorXf young_moduli;
     Eigen::VectorXi free_dofs;
-    Eigen::SparseVector<float> forces;
+    Eigen::VectorXf forces;
 };
 
 [[nodiscard]] FEA_problem fea_init(int num_elements_x, int num_elements_y);

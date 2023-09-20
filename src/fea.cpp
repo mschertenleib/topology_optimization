@@ -22,7 +22,7 @@ Eigen::VectorXi set_difference(const Eigen::VectorXi &a,
                          [value_a](Eigen::Index value_b)
                          { return value_a == value_b; }))
         {
-            result.coeffRef(index_result) = value_a;
+            result(index_result) = value_a;
             ++index_result;
         }
     }
@@ -120,7 +120,10 @@ FEA_problem fea_init(int num_elements_x, int num_elements_y)
     problem.free_dofs = set_difference(all_dofs, fixed_dofs);
 
     problem.forces.resize(num_dofs);
-    problem.forces.insert(num_dofs_per_node * node_indices(0, 0) + 1) = -1.0f;
+    problem.forces.setZero();
+    problem.forces(num_dofs_per_node * node_indices(0, 0) + 1) = -1.0f;
+    // problem.forces.insert(num_dofs_per_node * node_indices(0, 0) + 1) =
+    // -1.0f;
 
     return problem;
 }
@@ -157,6 +160,10 @@ Eigen::VectorXf fea_solve(const FEA_problem &problem)
         throw std::runtime_error("Decomposition failed");
     }
 
+    // FIXME: we might have solved our uninitialized/out of bounds memory
+    // problem by making the force vector dense, but we are still not filtering
+    // fixed DOFs. If we do that, we might actually get a working system, and it
+    // would then just be a case of making it work with a sparse force vector...
     Eigen::VectorXf displacements {solver.solve(problem.forces)};
     if (solver.info() != Eigen::Success)
     {

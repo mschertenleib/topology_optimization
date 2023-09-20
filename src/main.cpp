@@ -81,7 +81,7 @@ void store(const char *filename, const FEA_problem &problem)
     store(file, problem.element_stiffness_matrix_values);
     store(file, problem.young_moduli);
     store(file, problem.free_dofs);
-    store(file, problem.forces.toDense());
+    store(file, problem.forces);
 }
 
 void load(const char *filename, FEA_problem &problem)
@@ -100,9 +100,7 @@ void load(const char *filename, FEA_problem &problem)
     load(file, problem.element_stiffness_matrix_values);
     load(file, problem.young_moduli);
     load(file, problem.free_dofs);
-    Eigen::VectorXf forces_dense;
-    load(file, forces_dense);
-    problem.forces = forces_dense.sparseView();
+    load(file, problem.forces);
 }
 
 void check_equal(const FEA_problem &a, const FEA_problem &b)
@@ -119,9 +117,7 @@ void check_equal(const FEA_problem &a, const FEA_problem &b)
            b.element_stiffness_matrix_values);
     assert(a.young_moduli == b.young_moduli);
     assert(a.free_dofs == b.free_dofs);
-    //std::cout << a.forces.toDense().transpose()<<std::endl;
-    //std::cout << b.forces.toDense().transpose()<<std::endl;
-    assert(a.forces.toDense() == b.forces.toDense());
+    assert(a.forces == b.forces);
 }
 
 } // namespace
@@ -132,15 +128,13 @@ int main()
     {
         const auto fea_problem = fea_init(20, 10);
 
-        store("dump.bin", fea_problem);
+        /*store("dump.bin", fea_problem);
         FEA_problem fea_problem_2 {};
         load("dump.bin", fea_problem_2);
-        const auto forces = fea_problem_2.forces.toDense().transpose().eval();
-        std::cout << forces<<std::endl;
-        check_equal(fea_problem, fea_problem_2);
+        check_equal(fea_problem, fea_problem_2);*/
 
         const auto displacements = fea_solve(fea_problem);
-#if 1
+#if 0
         return EXIT_SUCCESS;
 #else
         return application_main(fea_problem, displacements);
