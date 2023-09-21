@@ -75,7 +75,7 @@ void update(
 {
     ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
 
-    ImPlot::ShowDemoWindow();
+    // ImPlot::ShowDemoWindow();
 
     if (ImGui::Begin("Test window"))
     {

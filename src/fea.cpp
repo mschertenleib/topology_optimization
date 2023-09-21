@@ -135,46 +135,73 @@ Eigen::VectorXf fea_solve(const FEA_problem &problem)
          problem.young_moduli.transpose())
             .reshaped()};
 
-    const Eigen::Index num_values {stiffness_matrix_values.size()};
-    std::vector<Eigen::Triplet<float>> triplets(
-        static_cast<std::size_t>(num_values));
-    for (Eigen::Index i {0}; i < num_values; ++i)
+    // Maps DOF indices to indices in the global stiffness matrix. The value -1
+    // indicates that the corresponding DOF is fixed and hence not present in
+    // the stiffness matrix
+    Eigen::VectorXi all_to_free(problem.num_dofs);
+    int current_stiffness_matrix_index {0};
+    for (Eigen::Index i {0}; i < problem.num_dofs; ++i)
     {
-        triplets[static_cast<std::size_t>(i)] = {
-            problem.stiffness_matrix_indices(i, 0),
-            problem.stiffness_matrix_indices(i, 1),
-            stiffness_matrix_values(i)};
+        if (std::binary_search(
+                problem.free_dofs.cbegin(), problem.free_dofs.cend(), i))
+        {
+            all_to_free(i) = current_stiffness_matrix_index;
+            ++current_stiffness_matrix_index;
+        }
+        else
+        {
+            all_to_free(i) = -1;
+        }
     }
 
-    Eigen::SparseMatrix<float> stiffness_matrix(problem.num_dofs,
-                                                problem.num_dofs);
+    const Eigen::Index num_values {stiffness_matrix_values.size()};
+    std::vector<Eigen::Triplet<float>> triplets;
+    triplets.reserve(static_cast<std::size_t>(num_values));
+    for (Eigen::Index i {0}; i < num_values; ++i)
+    {
+        const auto mapped_i =
+            all_to_free(problem.stiffness_matrix_indices(i, 0));
+        const auto mapped_j =
+            all_to_free(problem.stiffness_matrix_indices(i, 1));
+        if (mapped_i != -1 && mapped_j != -1)
+        {
+            triplets.emplace_back(
+                mapped_i, mapped_j, stiffness_matrix_values(i));
+        }
+    }
+
+    Eigen::SparseMatrix<float> stiffness_matrix(problem.free_dofs.size(),
+                                                problem.free_dofs.size());
     stiffness_matrix.setFromTriplets(triplets.cbegin(), triplets.cend());
-    // TODO: the stiffness matrix is correct, however some coefficients are zero
-    // as a result of summing coefficients from triplets. We could probably gain
-    // some performance by removing them
+    stiffness_matrix.prune(0.0f, 0.0f);
 
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<float>, Eigen::Lower> solver;
     solver.compute(stiffness_matrix);
     if (solver.info() != Eigen::Success)
     {
+        if (solver.info() == Eigen::NumericalIssue)
+            throw std::runtime_error("Decomposition failed: NumericalIssue");
+        else if (solver.info() == Eigen::NoConvergence)
+            throw std::runtime_error("Decomposition failed: NoConvergence");
+        else if (solver.info() == Eigen::InvalidInput)
+            throw std::runtime_error("Decomposition failed: InvalidInput");
         throw std::runtime_error("Decomposition failed");
     }
 
-    // FIXME: we might have solved our uninitialized/out of bounds memory
-    // problem by making the force vector dense, but we are still not filtering
-    // fixed DOFs. If we do that, we might actually get a working system, and it
-    // would then just be a case of making it work with a sparse force vector...
-    Eigen::VectorXf displacements {solver.solve(problem.forces)};
+    const Eigen::VectorXf free_displacements {
+        solver.solve(problem.forces(problem.free_dofs))};
+    Eigen::VectorXf displacements(problem.num_dofs);
+    displacements.setZero();
+    displacements(problem.free_dofs) = free_displacements;
     if (solver.info() != Eigen::Success)
     {
+        if (solver.info() == Eigen::NumericalIssue)
+            throw std::runtime_error("Solving failed: NumericalIssue");
+        else if (solver.info() == Eigen::NoConvergence)
+            throw std::runtime_error("Solving failed: NoConvergence");
+        else if (solver.info() == Eigen::InvalidInput)
+            throw std::runtime_error("Solving failed: InvalidInput");
         throw std::runtime_error("Solving failed");
-    }
-
-    if (displacements.maxCoeff() > 15.0f || displacements.minCoeff() < -50.0f)
-    {
-        std::cout << "Unexpected displacements in range ["
-                  << displacements.minCoeff() << ", "
-                  << displacements.maxCoeff() << "]\n";
     }
 
     return displacements;
