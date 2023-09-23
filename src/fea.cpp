@@ -2,11 +2,26 @@
 
 #include <Eigen/SparseCholesky>
 
+#include <chrono>
 #include <iostream>
 #include <sstream>
 
 namespace
 {
+
+[[nodiscard]] inline std::chrono::steady_clock::time_point timer_start()
+{
+    return std::chrono::steady_clock::now();
+}
+
+inline void timer_stop(std::chrono::steady_clock::time_point start,
+                       const char *label)
+{
+    const auto end = std::chrono::steady_clock::now();
+    std::cout << label << ": "
+              << std::chrono::duration<double>(end - start).count() * 1'000.0
+              << " ms\n";
+}
 
 [[nodiscard]] constexpr const char *
 to_string(Eigen::ComputationInfo computation_info) noexcept
@@ -48,6 +63,8 @@ Eigen::VectorXi set_difference(const Eigen::VectorXi &a,
 
 FEA_problem fea_init(int num_elements_x, int num_elements_y)
 {
+    const auto t = timer_start();
+
     constexpr float young_modulus {1.0f};
     constexpr float young_modulus_min {1e-9f};
     constexpr float poisson_ratio {0.3f};
@@ -136,11 +153,16 @@ FEA_problem fea_init(int num_elements_x, int num_elements_y)
     problem.forces.setZero(num_dofs);
     problem.forces(num_dofs_per_node * node_indices(0, 0) + 1) = -1.0f;
 
+    timer_stop(t, "fea_init");
+
     return problem;
 }
 
 Eigen::VectorXf fea_solve(const FEA_problem &problem)
 {
+    const auto global_t = timer_start();
+    auto t = timer_start();
+
     const Eigen::VectorXf stiffness_matrix_values {
         (problem.element_stiffness_matrix_values *
          problem.young_moduli.transpose())
@@ -186,6 +208,9 @@ Eigen::VectorXf fea_solve(const FEA_problem &problem)
     stiffness_matrix.setFromTriplets(triplets.cbegin(), triplets.cend());
     stiffness_matrix.prune(0.0f, 0.0f);
 
+    timer_stop(t, "stiffness matrix assembly");
+    t = timer_start();
+
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<float>, Eigen::Lower> solver;
     solver.compute(stiffness_matrix);
     if (const auto result = solver.info(); result != Eigen::Success)
@@ -194,6 +219,9 @@ Eigen::VectorXf fea_solve(const FEA_problem &problem)
         message << "Decomposition failed: " << to_string(result);
         throw std::runtime_error(message.str());
     }
+
+    timer_stop(t, "stiffness matrix decomposition");
+    t = timer_start();
 
     const Eigen::VectorXf free_displacements {
         solver.solve(problem.forces(problem.free_dofs))};
@@ -206,6 +234,9 @@ Eigen::VectorXf fea_solve(const FEA_problem &problem)
         message << "Solving failed: " << to_string(result);
         throw std::runtime_error(message.str());
     }
+
+    timer_stop(t, "solving system");
+    timer_stop(global_t, "fea_solve");
 
     return displacements;
 }
