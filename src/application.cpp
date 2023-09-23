@@ -128,6 +128,13 @@ int application_main(const FEA_problem &fea_problem,
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
+    float x_scale;
+    float y_scale;
+    glfwGetWindowContentScale(window, &x_scale, &y_scale);
+    ImFontConfig font_config {};
+    font_config.SizePixels = 13.0f * std::max(x_scale, y_scale);
+    io.Fonts->AddFontDefault(&font_config);
+
     if (!ImGui_ImplGlfw_InitForOpenGL(window, true))
     {
         return EXIT_FAILURE;
