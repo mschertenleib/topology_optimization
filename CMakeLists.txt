@@ -53,9 +53,7 @@ CPMAddPackage(
 )
 
 
-set(is_gnu "$<CXX_COMPILER_ID:GNU>")
-set(is_clang "$<CXX_COMPILER_ID:Clang,AppleClang>")
-set(is_gnu_or_clang "$<OR:${is_gnu},${is_clang}>")
+set(is_gnu_or_clang "$<CXX_COMPILER_ID:GNU,Clang,AppleClang>")
 add_compile_options($<${is_gnu_or_clang}:-march=native>)
 add_compile_options($<$<AND:$<CONFIG:Debug>,${is_gnu_or_clang}>:-Og>)
 
@@ -141,10 +139,12 @@ set(gcc_warnings
         -Wduplicated-branches
         -Wlogical-op
 )
-if (is_clang)
+if (CMAKE_CXX_COMPILER_ID MATCHES ".*Clang")
     target_compile_options(mechanisms PRIVATE ${clang_warnings})
-elseif (is_gnu)
+elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_compile_options(mechanisms PRIVATE ${gcc_warnings})
+elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    target_compile_options(mechanisms PRIVATE /W4)
 else ()
     message(WARNING "No warnings set for compiler ${CMAKE_CXX_COMPILER_ID}")
 endif ()

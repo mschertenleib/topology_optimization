@@ -3,9 +3,23 @@
 #include <Eigen/SparseCholesky>
 
 #include <iostream>
+#include <sstream>
 
 namespace
 {
+
+[[nodiscard]] constexpr const char *
+to_string(Eigen::ComputationInfo computation_info) noexcept
+{
+    switch (computation_info)
+    {
+    case Eigen::Success: return "Success";
+    case Eigen::NumericalIssue: return "NumericalIssue";
+    case Eigen::NoConvergence: return "NoConvergence";
+    case Eigen::InvalidInput: return "InvalidInput";
+    }
+    return "UNDEFINED";
+}
 
 // FIXME: this is temporary and not very safe
 // Assumes all elements of b are contained in a
@@ -77,11 +91,11 @@ FEA_problem fea_init(int num_elements_x, int num_elements_y)
     const Eigen::VectorXi stiffness_matrix_indices_i {
         connectivity_matrix(Eigen::all, dof_connectivities_i)
             .transpose()
-            .reshaped()};
+            .reshaped(num_elements * 36, 1)};
     const Eigen::VectorXi stiffness_matrix_indices_j {
         connectivity_matrix(Eigen::all, dof_connectivities_j)
             .transpose()
-            .reshaped()};
+            .reshaped(num_elements * 36, 1)};
 
     FEA_problem problem {};
     problem.num_elements_x = num_elements_x;
@@ -98,16 +112,16 @@ FEA_problem fea_init(int num_elements_x, int num_elements_y)
         << stiffness_matrix_indices_i.cwiseMax(stiffness_matrix_indices_j),
         stiffness_matrix_indices_i.cwiseMin(stiffness_matrix_indices_j);
 
-    const Eigen::Vector<float, 36> element_stiffness_matrix_coefficients_1 {
+    const Eigen::Vector<float, 36> element_stiffness_matrix_values_1 {
         12, 3,  -6, -3, -6, -3, 0, 3,  12, 3, 0,  -3, -6, -3, -6, 12, -3, 0,
         -3, -6, 3,  12, 3,  -6, 3, -6, 12, 3, -6, -3, 12, 3,  0,  12, -3, 12};
-    const Eigen::Vector<float, 36> element_stiffness_matrix_coefficients_2 {
+    const Eigen::Vector<float, 36> element_stiffness_matrix_values_2 {
         -4, 3, -2, 9,  2,  -3, 4, -9, -4, -9, 4,  -3, 2,  9,  -2, -4, -3, 4,
         9,  2, 3,  -4, -9, -2, 3, 2,  -4, 3,  -2, 9,  -4, -9, 4,  -4, -3, -4};
     problem.element_stiffness_matrix_values =
         1.0f / (1.0f - poisson_ratio * poisson_ratio) / 24.0f *
-        (element_stiffness_matrix_coefficients_1 +
-         poisson_ratio * element_stiffness_matrix_coefficients_2);
+        (element_stiffness_matrix_values_1 +
+         poisson_ratio * element_stiffness_matrix_values_2);
 
     problem.young_moduli.setConstant(num_elements, young_modulus);
 
@@ -119,8 +133,7 @@ FEA_problem fea_init(int num_elements_x, int num_elements_y)
         Eigen::VectorXi::LinSpaced(num_dofs, 0, num_dofs - 1)};
     problem.free_dofs = set_difference(all_dofs, fixed_dofs);
 
-    problem.forces.resize(num_dofs);
-    problem.forces.setZero();
+    problem.forces.setZero(num_dofs);
     problem.forces(num_dofs_per_node * node_indices(0, 0) + 1) = -1.0f;
 
     return problem;
@@ -175,15 +188,11 @@ Eigen::VectorXf fea_solve(const FEA_problem &problem)
 
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<float>, Eigen::Lower> solver;
     solver.compute(stiffness_matrix);
-    if (solver.info() != Eigen::Success)
+    if (const auto result = solver.info(); result != Eigen::Success)
     {
-        if (solver.info() == Eigen::NumericalIssue)
-            throw std::runtime_error("Decomposition failed: NumericalIssue");
-        else if (solver.info() == Eigen::NoConvergence)
-            throw std::runtime_error("Decomposition failed: NoConvergence");
-        else if (solver.info() == Eigen::InvalidInput)
-            throw std::runtime_error("Decomposition failed: InvalidInput");
-        throw std::runtime_error("Decomposition failed");
+        std::ostringstream message;
+        message << "Decomposition failed: " << to_string(result);
+        throw std::runtime_error(message.str());
     }
 
     const Eigen::VectorXf free_displacements {
@@ -191,15 +200,11 @@ Eigen::VectorXf fea_solve(const FEA_problem &problem)
     Eigen::VectorXf displacements(problem.num_dofs);
     displacements.setZero();
     displacements(problem.free_dofs) = free_displacements;
-    if (solver.info() != Eigen::Success)
+    if (const auto result = solver.info(); result != Eigen::Success)
     {
-        if (solver.info() == Eigen::NumericalIssue)
-            throw std::runtime_error("Solving failed: NumericalIssue");
-        else if (solver.info() == Eigen::NoConvergence)
-            throw std::runtime_error("Solving failed: NoConvergence");
-        else if (solver.info() == Eigen::InvalidInput)
-            throw std::runtime_error("Solving failed: InvalidInput");
-        throw std::runtime_error("Solving failed");
+        std::ostringstream message;
+        message << "Solving failed: " << to_string(result);
+        throw std::runtime_error(message.str());
     }
 
     return displacements;
