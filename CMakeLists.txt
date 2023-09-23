@@ -53,10 +53,15 @@ CPMAddPackage(
 )
 
 
+set(is_gnu "$<CXX_COMPILER_ID:GNU>")
+set(is_clang "$<CXX_COMPILER_ID:Clang,AppleClang>")
+set(is_gnu_or_clang "$<OR:${is_gnu},${is_clang}>")
+add_compile_options($<${is_gnu_or_clang}:-march=native>)
+add_compile_options($<$<AND:$<CONFIG:Debug>,${is_gnu_or_clang}>:-Og>)
+
+
 #@formatter:off
-add_compile_definitions(
-        IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/imgui_config.h"
-)
+add_compile_definitions(IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/imgui_config.h")
 #@formatter:on
 add_library(imgui STATIC
         ${imgui_SOURCE_DIR}/imgui.cpp
@@ -114,8 +119,7 @@ target_link_libraries(mechanisms PRIVATE
 )
 
 
-set(CLANG_OPTIONS
-        -march=native
+set(clang_warnings
         -Wall
         -Wextra
         -Wshadow
@@ -130,21 +134,19 @@ set(CLANG_OPTIONS
         -Wnull-dereference
         -Wdouble-promotion
 )
-
-set(GCC_OPTIONS
-        ${CLANG_OPTIONS}
+set(gcc_warnings
+        ${clang_warnings}
         -Wmisleading-indentation
         -Wduplicated-cond
         -Wduplicated-branches
         -Wlogical-op
 )
-
-if (CMAKE_CXX_COMPILER_ID MATCHES ".*Clang")
-    target_compile_options(mechanisms PRIVATE ${CLANG_OPTIONS})
-elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    target_compile_options(mechanisms PRIVATE ${GCC_OPTIONS})
+if (is_clang)
+    target_compile_options(mechanisms PRIVATE ${clang_warnings})
+elseif (is_gnu)
+    target_compile_options(mechanisms PRIVATE ${gcc_warnings})
 else ()
-    message(WARNING "No compile options set for compiler '${CMAKE_CXX_COMPILER_ID}'")
+    message(WARNING "No warnings set for compiler ${CMAKE_CXX_COMPILER_ID}")
 endif ()
 
 

@@ -122,8 +122,6 @@ FEA_problem fea_init(int num_elements_x, int num_elements_y)
     problem.forces.resize(num_dofs);
     problem.forces.setZero();
     problem.forces(num_dofs_per_node * node_indices(0, 0) + 1) = -1.0f;
-    // problem.forces.insert(num_dofs_per_node * node_indices(0, 0) + 1) =
-    // -1.0f;
 
     return problem;
 }
