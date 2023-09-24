@@ -23,6 +23,30 @@ cmake --build build --target mechanisms
 - [Dear ImGui](https://github.com/ocornut/imgui)
 - [Implot](https://github.com/epezent/implot)
 
+## Notes
+
+- `EIGEN_NO_AUTOMATIC_RESIZING` apparently breaks some operations. For example,
+  when assigning a default-constructed dense `dst` to a sparse `src`, the
+  fundamental operations executed are:
+  ```
+  dst._resize_to_match(src);
+  dst.setZero();
+  resize_if_allowed(dst, src);
+  for each coeff in non-zeros of src:
+      dst(coeff.index) = coeff.value;
+  ```
+  If `EIGEN_NO_AUTOMATIC_RESIZING` is defined, `dst._resize_to_match(src)` is a
+  no-op **even if `dst` has size 0**, and the call to `setZero()` does nothing
+  (because `dst` still has size 0). Then `resize_if_allowed(dst, src)` actually
+  resizes `dst` to the size of `src`, and leaves its coefficients uninitialized.
+  Therefore only the coefficients corresponding to non-zeros of `src` are
+  assigned to, while the others keep their uninitialized value (NaN
+  if `EIGEN_INITIALIZE_MATRICES_BY_NAN` is defined).
+
+  If `EIGEN_NO_AUTOMATIC_RESIZING` is not defined, the resizing of `dst` happens
+  in `dst._resize_to_match(src)`, **before** the `setZero()`, and everything
+  works as expected.
+
 ## References
 
 - F. Ferrari and O. Sigmund, "A new generation 99 line Matlab code for

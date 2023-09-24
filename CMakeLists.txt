@@ -56,7 +56,7 @@ CPMAddPackage(
 set(is_gnu_or_clang "$<CXX_COMPILER_ID:GNU,Clang,AppleClang>")
 add_compile_options($<${is_gnu_or_clang}:-march=native>)
 add_compile_definitions(
-        EIGEN_NO_AUTOMATIC_RESIZING
+        #EIGEN_NO_AUTOMATIC_RESIZING
         EIGEN_RUNTIME_NO_MALLOC
         EIGEN_INITIALIZE_MATRICES_BY_NAN
 )

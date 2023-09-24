@@ -9,12 +9,23 @@ int main()
 {
     try
     {
+#if 1
         auto state = fea_init(20, 10);
         fea_solve(state);
-#if 0
-        return EXIT_SUCCESS;
-#else
         return application_main(state);
+#else
+        Eigen::SparseVector<float> sparse(10);
+        sparse.insert(4) = 3.1415f;
+        sparse.insert(7) = -5.37f;
+
+        Eigen::VectorXf dense1(sparse);
+        std::cout << "dense1: " << dense1.transpose() << std::endl;
+
+        Eigen::VectorXf dense2(10);
+        dense2 = sparse;
+        std::cout << "dense2: " << dense2.transpose() << std::endl;
+
+        return EXIT_SUCCESS;
 #endif
     }
     catch (const std::exception &e)

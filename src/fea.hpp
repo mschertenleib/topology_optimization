@@ -18,6 +18,7 @@ struct FEA_state
     Eigen::Vector<float, 36> element_stiffness_matrix_values;
     Eigen::VectorXf young_moduli;
     Eigen::VectorXi free_dofs;
+    Eigen::VectorXi all_to_free;
     Eigen::VectorXf forces;
     Eigen::VectorXf displacements;
 };
