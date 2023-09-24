@@ -4,7 +4,7 @@
 #include <Eigen/Core>
 #include <Eigen/SparseCore>
 
-struct FEA_problem
+struct FEA_state
 {
     int num_elements_x;
     int num_elements_y;
@@ -13,15 +13,17 @@ struct FEA_problem
     int num_nodes_y;
     int num_nodes;
     int num_dofs;
+    int num_dofs_per_node;
     Eigen::MatrixX2i stiffness_matrix_indices;
     Eigen::Vector<float, 36> element_stiffness_matrix_values;
     Eigen::VectorXf young_moduli;
     Eigen::VectorXi free_dofs;
     Eigen::VectorXf forces;
+    Eigen::VectorXf displacements;
 };
 
-[[nodiscard]] FEA_problem fea_init(int num_elements_x, int num_elements_y);
+[[nodiscard]] FEA_state fea_init(int num_elements_x, int num_elements_y);
 
-[[nodiscard]] Eigen::VectorXf fea_solve(const FEA_problem &problem);
+void fea_solve(FEA_state &state);
 
 #endif // FEA_HPP

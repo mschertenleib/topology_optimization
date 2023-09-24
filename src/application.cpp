@@ -1,4 +1,5 @@
 #include "application.hpp"
+#include "fea.hpp"
 
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
@@ -87,8 +88,7 @@ void update(
 
 } // namespace
 
-int application_main(const FEA_problem &fea_problem,
-                     const Eigen::VectorXf &displacements)
+int application_main(const FEA_state &fea_state)
 {
     glfwSetErrorCallback(
         [](int error, const char *description) {
@@ -153,14 +153,14 @@ int application_main(const FEA_problem &fea_problem,
 
     const Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
         displacements_x {
-            displacements(Eigen::seq(0, Eigen::last, 2))
+            fea_state.displacements(Eigen::seq(0, Eigen::last, 2))
                 .eval()
-                .reshaped(fea_problem.num_nodes_y, fea_problem.num_nodes_x)};
+                .reshaped(fea_state.num_nodes_y, fea_state.num_nodes_x)};
     const Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
         displacements_y {
-            displacements(Eigen::seq(1, Eigen::last, 2))
+            fea_state.displacements(Eigen::seq(1, Eigen::last, 2))
                 .eval()
-                .reshaped(fea_problem.num_nodes_y, fea_problem.num_nodes_x)};
+                .reshaped(fea_state.num_nodes_y, fea_state.num_nodes_x)};
 
     while (!glfwWindowShouldClose(window))
     {

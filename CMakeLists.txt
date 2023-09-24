@@ -56,6 +56,10 @@ CPMAddPackage(
 set(is_gnu_or_clang "$<CXX_COMPILER_ID:GNU,Clang,AppleClang>")
 add_compile_options($<${is_gnu_or_clang}:-march=native>)
 add_compile_options($<$<AND:$<CONFIG:Debug>,${is_gnu_or_clang}>:-Og>)
+add_compile_definitions(
+        EIGEN_NO_AUTOMATIC_RESIZING
+        EIGEN_RUNTIME_NO_MALLOC
+)
 
 
 #@formatter:off
@@ -105,10 +109,6 @@ add_executable(mechanisms
 )
 target_include_directories(mechanisms SYSTEM PRIVATE ${eigen_SOURCE_DIR})
 target_compile_features(mechanisms PRIVATE cxx_std_20)
-target_compile_definitions(mechanisms PRIVATE
-        EIGEN_NO_AUTOMATIC_RESIZING
-        EIGEN_RUNTIME_NO_MALLOC
-)
 target_link_libraries(mechanisms PRIVATE
         OpenGL::GL
         glfw

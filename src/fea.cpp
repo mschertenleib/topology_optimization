@@ -61,7 +61,7 @@ Eigen::VectorXi set_difference(const Eigen::VectorXi &a,
 
 } // namespace
 
-FEA_problem fea_init(int num_elements_x, int num_elements_y)
+FEA_state fea_init(int num_elements_x, int num_elements_y)
 {
     const auto t = timer_start();
 
@@ -114,18 +114,18 @@ FEA_problem fea_init(int num_elements_x, int num_elements_y)
             .transpose()
             .reshaped(num_elements * 36, 1)};
 
-    FEA_problem problem {};
-    problem.num_elements_x = num_elements_x;
-    problem.num_elements_y = num_elements_y;
-    problem.num_elements = num_elements;
-    problem.num_nodes_x = num_nodes_x;
-    problem.num_nodes_y = num_nodes_y;
-    problem.num_nodes = num_nodes;
-    problem.num_dofs = num_dofs;
+    FEA_state state {};
+    state.num_elements_x = num_elements_x;
+    state.num_elements_y = num_elements_y;
+    state.num_elements = num_elements;
+    state.num_nodes_x = num_nodes_x;
+    state.num_nodes_y = num_nodes_y;
+    state.num_nodes = num_nodes;
+    state.num_dofs = num_dofs;
+    state.num_dofs_per_node = num_dofs_per_node;
 
-    problem.stiffness_matrix_indices.resize(stiffness_matrix_indices_i.rows(),
-                                            2);
-    problem.stiffness_matrix_indices
+    state.stiffness_matrix_indices.resize(stiffness_matrix_indices_i.rows(), 2);
+    state.stiffness_matrix_indices
         << stiffness_matrix_indices_i.cwiseMax(stiffness_matrix_indices_j),
         stiffness_matrix_indices_i.cwiseMin(stiffness_matrix_indices_j);
 
@@ -135,12 +135,12 @@ FEA_problem fea_init(int num_elements_x, int num_elements_y)
     const Eigen::Vector<float, 36> element_stiffness_matrix_values_2 {
         -4, 3, -2, 9,  2,  -3, 4, -9, -4, -9, 4,  -3, 2,  9,  -2, -4, -3, 4,
         9,  2, 3,  -4, -9, -2, 3, 2,  -4, 3,  -2, 9,  -4, -9, 4,  -4, -3, -4};
-    problem.element_stiffness_matrix_values =
+    state.element_stiffness_matrix_values =
         1.0f / (1.0f - poisson_ratio * poisson_ratio) / 24.0f *
         (element_stiffness_matrix_values_1 +
          poisson_ratio * element_stiffness_matrix_values_2);
 
-    problem.young_moduli.setConstant(num_elements, young_modulus);
+    state.young_moduli.setConstant(num_elements, young_modulus);
 
     Eigen::VectorXi fixed_dofs(num_nodes_y + 1);
     fixed_dofs << Eigen::VectorXi::LinSpaced(
@@ -148,35 +148,36 @@ FEA_problem fea_init(int num_elements_x, int num_elements_y)
         num_dofs_per_node * node_indices(Eigen::last, Eigen::last) + 1;
     const Eigen::VectorXi all_dofs {
         Eigen::VectorXi::LinSpaced(num_dofs, 0, num_dofs - 1)};
-    problem.free_dofs = set_difference(all_dofs, fixed_dofs);
+    state.free_dofs = set_difference(all_dofs, fixed_dofs);
 
-    problem.forces.setZero(num_dofs);
-    problem.forces(num_dofs_per_node * node_indices(0, 0) + 1) = -1.0f;
+    state.forces.setZero(num_dofs);
+    state.forces(num_dofs_per_node * node_indices(0, 0) + 1) = -1.0f;
+
+    state.displacements.setZero(num_dofs);
 
     timer_stop(t, "fea_init");
 
-    return problem;
+    return state;
 }
 
-Eigen::VectorXf fea_solve(const FEA_problem &problem)
+void fea_solve(FEA_state &state)
 {
     const auto global_t = timer_start();
     auto t = timer_start();
 
     const Eigen::VectorXf stiffness_matrix_values {
-        (problem.element_stiffness_matrix_values *
-         problem.young_moduli.transpose())
+        (state.element_stiffness_matrix_values * state.young_moduli.transpose())
             .reshaped()};
 
     // Maps DOF indices to indices in the global stiffness matrix. The value -1
     // indicates that the corresponding DOF is fixed and hence not present in
     // the stiffness matrix
-    Eigen::VectorXi all_to_free(problem.num_dofs);
+    Eigen::VectorXi all_to_free(state.num_dofs);
     int current_stiffness_matrix_index {0};
-    for (Eigen::Index i {0}; i < problem.num_dofs; ++i)
+    for (Eigen::Index i {0}; i < state.num_dofs; ++i)
     {
         if (std::binary_search(
-                problem.free_dofs.cbegin(), problem.free_dofs.cend(), i))
+                state.free_dofs.cbegin(), state.free_dofs.cend(), i))
         {
             all_to_free(i) = current_stiffness_matrix_index;
             ++current_stiffness_matrix_index;
@@ -192,10 +193,8 @@ Eigen::VectorXf fea_solve(const FEA_problem &problem)
     triplets.reserve(static_cast<std::size_t>(num_values));
     for (Eigen::Index i {0}; i < num_values; ++i)
     {
-        const auto mapped_i =
-            all_to_free(problem.stiffness_matrix_indices(i, 0));
-        const auto mapped_j =
-            all_to_free(problem.stiffness_matrix_indices(i, 1));
+        const auto mapped_i = all_to_free(state.stiffness_matrix_indices(i, 0));
+        const auto mapped_j = all_to_free(state.stiffness_matrix_indices(i, 1));
         if (mapped_i != -1 && mapped_j != -1)
         {
             triplets.emplace_back(
@@ -203,8 +202,8 @@ Eigen::VectorXf fea_solve(const FEA_problem &problem)
         }
     }
 
-    Eigen::SparseMatrix<float> stiffness_matrix(problem.free_dofs.size(),
-                                                problem.free_dofs.size());
+    Eigen::SparseMatrix<float> stiffness_matrix(state.free_dofs.size(),
+                                                state.free_dofs.size());
     stiffness_matrix.setFromTriplets(triplets.cbegin(), triplets.cend());
     stiffness_matrix.prune(0.0f, 0.0f);
 
@@ -223,11 +222,13 @@ Eigen::VectorXf fea_solve(const FEA_problem &problem)
     timer_stop(t, "stiffness matrix decomposition");
     t = timer_start();
 
-    const Eigen::VectorXf free_displacements {
-        solver.solve(problem.forces(problem.free_dofs))};
-    Eigen::VectorXf displacements(problem.num_dofs);
-    displacements.setZero();
-    displacements(problem.free_dofs) = free_displacements;
+    Eigen::SparseVector<float> sparse_forces;
+    sparse_forces = state.forces(state.free_dofs).sparseView();
+    Eigen::VectorXf free_displacements(state.free_dofs.size());
+    free_displacements.setZero();
+    free_displacements = solver.solve(sparse_forces);
+    state.displacements.setZero();
+    state.displacements(state.free_dofs) = free_displacements;
     if (const auto result = solver.info(); result != Eigen::Success)
     {
         std::ostringstream message;
@@ -237,6 +238,4 @@ Eigen::VectorXf fea_solve(const FEA_problem &problem)
 
     timer_stop(t, "solving system");
     timer_stop(global_t, "fea_solve");
-
-    return displacements;
 }

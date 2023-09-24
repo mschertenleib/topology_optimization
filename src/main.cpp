@@ -9,12 +9,12 @@ int main()
 {
     try
     {
-        const auto fea_problem = fea_init(20, 10);
-        const auto displacements = fea_solve(fea_problem);
+        auto state = fea_init(20, 10);
+        fea_solve(state);
 #if 0
         return EXIT_SUCCESS;
 #else
-        return application_main(fea_problem, displacements);
+        return application_main(state);
 #endif
     }
     catch (const std::exception &e)
