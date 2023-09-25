@@ -72,7 +72,9 @@ void update(
     const Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
         &displacements_x,
     const Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-        &displacements_y)
+        &displacements_y,
+    const Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
+        &densities)
 {
     ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
 
@@ -82,6 +84,7 @@ void update(
     {
         plot_matrix("Displacements X", displacements_x);
         plot_matrix("Displacements Y", displacements_y);
+        plot_matrix("Densities", densities);
     }
     ImGui::End();
 }
@@ -109,7 +112,7 @@ int application_main(const FEA_state &fea_state)
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
     const auto window {
-        glfwCreateWindow(1000, 850, "mechanisms", nullptr, nullptr)};
+        glfwCreateWindow(1000, 1250, "mechanisms", nullptr, nullptr)};
     if (window == nullptr)
     {
         return EXIT_FAILURE;
@@ -157,6 +160,9 @@ int application_main(const FEA_state &fea_state)
                 .eval()
                 .reshaped(fea_state.num_nodes_y, fea_state.num_nodes_x)};
     const Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
+        densities {fea_state.young_moduli.reshaped(fea_state.num_elements_y,
+                                                   fea_state.num_elements_x)};
+    const Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
         displacements_y {
             fea_state.displacements(Eigen::seq(1, Eigen::last, 2))
                 .eval()
@@ -170,7 +176,7 @@ int application_main(const FEA_state &fea_state)
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        update(displacements_x, displacements_y);
+        update(displacements_x, displacements_y, densities);
 
         ImGui::Render();
         int framebuffer_width {};

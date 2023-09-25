@@ -10,7 +10,7 @@ int main()
     try
     {
 #if 1
-        auto state = fea_init(20, 10);
+        auto state = fea_init(200, 100);
         fea_solve(state);
         return application_main(state);
 #else

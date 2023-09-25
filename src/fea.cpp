@@ -3,6 +3,7 @@
 #include <Eigen/SparseCholesky>
 
 #include <chrono>
+#include <fstream>
 #include <iostream>
 #include <sstream>
 
@@ -57,6 +58,23 @@ Eigen::VectorXi set_difference(const Eigen::VectorXi &a,
     }
 
     return result;
+}
+
+void load_densities(Eigen::VectorXf &densities, const char *file_name)
+{
+    assert(densities.size() == 100 * 200);
+
+    std::ifstream file(file_name);
+    if (!file)
+    {
+        std::cerr << "Failed to open \"" << file_name << "\"\n";
+        return;
+    }
+
+    for (auto &value : densities)
+    {
+        file >> value;
+    }
 }
 
 } // namespace
@@ -141,6 +159,7 @@ FEA_state fea_init(int num_elements_x, int num_elements_y)
          poisson_ratio * element_stiffness_matrix_values_2);
 
     state.young_moduli.setConstant(num_elements, young_modulus);
+    load_densities(state.young_moduli, "../densities.txt");
 
     Eigen::VectorXi fixed_dofs(num_nodes_y + 1);
     fixed_dofs << Eigen::VectorXi::LinSpaced(
