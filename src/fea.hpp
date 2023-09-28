@@ -27,4 +27,12 @@ struct FEA_state
 
 void fea_solve(FEA_state &state);
 
+void fea_init_optimization(FEA_state &state,
+                           float volume_fraction,
+                           float penalization,
+                           float radius_min,
+                           float move);
+
+void fea_optimization_step(FEA_state &state);
+
 #endif // FEA_HPP

@@ -11,8 +11,16 @@ int main()
     {
 #if 1
         auto state = fea_init(200, 100);
-        fea_solve(state);
-        return application_main(state);
+
+        constexpr float volume_fraction {0.2f};
+        constexpr float penalization {3.0f};
+        constexpr float radius_min {2.0f};
+        constexpr float move {0.2f};
+        fea_init_optimization(
+            state, volume_fraction, penalization, radius_min, move);
+
+        // fea_solve(state);
+        // return application_main(state);
 #else
         Eigen::SparseVector<float> sparse(10);
         sparse.insert(4) = 3.1415f;

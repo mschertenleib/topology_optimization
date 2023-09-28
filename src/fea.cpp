@@ -259,3 +259,28 @@ void fea_solve(FEA_state &state)
     timer_stop(t, "solving system");
     timer_stop(global_t, "fea_solve");
 }
+
+void fea_init_optimization(FEA_state &state,
+                           float volume_fraction,
+                           float penalization,
+                           float radius_min,
+                           float move)
+{
+    Eigen::Matrix<float, 8, 8> element_stiffness_matrix;
+    Eigen::Index index {0};
+    for (Eigen::Index j {0}; j < 8; ++j)
+    {
+        for (Eigen::Index i {j}; i < 8; ++i)
+        {
+            element_stiffness_matrix(i, j) =
+                state.element_stiffness_matrix_values(index);
+            element_stiffness_matrix(j, i) =
+                state.element_stiffness_matrix_values(index);
+            ++index;
+        }
+    }
+}
+
+void fea_optimization_step(FEA_state &state)
+{
+}
