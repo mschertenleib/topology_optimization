@@ -11,8 +11,8 @@ struct FEA_state
     int num_nodes_x;
     int num_nodes_y;
     int num_nodes;
-    int num_dofs;
     int num_dofs_per_node;
+    int num_dofs;
     float young_modulus;
     float young_modulus_min;
     float poisson_ratio;
@@ -20,9 +20,11 @@ struct FEA_state
     float penalization;
     float radius_min;
     float move;
-    Eigen::MatrixX2i stiffness_matrix_indices;
+    Eigen::Matrix<int, Eigen::Dynamic, 8> connectivity_matrix;
     Eigen::Vector<float, 36> element_stiffness_matrix_values;
     Eigen::Matrix<float, 8, 8> element_stiffness_matrix;
+    Eigen::MatrixX2i stiffness_matrix_indices;
+    Eigen::VectorXf stiffness_matrix_values;
     Eigen::VectorXf young_moduli;
     Eigen::VectorXi passive_solid;
     Eigen::VectorXi passive_void;
@@ -36,7 +38,8 @@ struct FEA_state
     Eigen::VectorXf design_variables_old;
     Eigen::VectorXf stiffness_derivative;
     Eigen::VectorXf volume_derivative;
-    Eigen::MatrixXf filter;
+    Eigen::ArrayXXf filter_weights;
+    Eigen::ArrayXXf filter_kernel;
 };
 
 [[nodiscard]] FEA_state fea_init(int num_elements_x,
