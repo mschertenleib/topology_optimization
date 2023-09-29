@@ -62,6 +62,41 @@ filtered_index_vector(int size, const Eigen::VectorXi &discard)
     return result;
 }
 
+[[nodiscard]] Eigen::MatrixXf filter(const Eigen::MatrixXf &m,
+                                     const Eigen::MatrixXf &kernel)
+{
+    // TODO: make this faster by using Eigen's GEMM
+
+    Eigen::MatrixXf result;
+    result.resizeLike(m);
+
+    for (Eigen::Index i {0}; i < result.rows(); ++i)
+    {
+        for (Eigen::Index j {0}; j < result.cols(); ++j)
+        {
+            float sum {0.0f};
+            for (Eigen::Index k {0}; k < kernel.rows(); ++k)
+            {
+                const auto m_i = i + k - kernel.rows() / 2;
+                if (m_i >= 0 && m_i < m.rows())
+                {
+                    for (Eigen::Index l {0}; l < kernel.cols(); ++l)
+                    {
+                        const auto m_j = j + l - kernel.cols() / 2;
+                        if (m_j >= 0 && m_j < m.cols())
+                        {
+                            sum += m(m_i, m_j) * kernel(k, l);
+                        }
+                    }
+                }
+            }
+            result(i, j) = sum;
+        }
+    }
+
+    return result;
+}
+
 void load_densities(Eigen::VectorXf &densities, const char *file_name)
 {
     assert(densities.size() == 100 * 200);
@@ -81,7 +116,12 @@ void load_densities(Eigen::VectorXf &densities, const char *file_name)
 
 } // namespace
 
-FEA_state fea_init(int num_elements_x, int num_elements_y)
+FEA_state fea_init(int num_elements_x,
+                   int num_elements_y,
+                   float volume_fraction,
+                   float penalization,
+                   float radius_min,
+                   float move)
 {
     const auto t = timer_start();
 
@@ -143,6 +183,13 @@ FEA_state fea_init(int num_elements_x, int num_elements_y)
     fea.num_nodes = num_nodes;
     fea.num_dofs = num_dofs;
     fea.num_dofs_per_node = num_dofs_per_node;
+    fea.young_modulus = young_modulus;
+    fea.young_modulus_min = young_modulus_min;
+    fea.poisson_ratio = poisson_ratio;
+    fea.volume_fraction = volume_fraction;
+    fea.penalization = penalization;
+    fea.radius_min = radius_min;
+    fea.move = move;
 
     fea.stiffness_matrix_indices.resize(stiffness_matrix_indices_i.rows(), 2);
     fea.stiffness_matrix_indices
@@ -173,7 +220,6 @@ FEA_state fea_init(int num_elements_x, int num_elements_y)
     }
 
     fea.young_moduli.setConstant(num_elements, young_modulus);
-    //load_densities(fea.young_moduli, "../densities.txt");
 
     fea.passive_solid = {};
     fea.passive_void = {};
@@ -213,6 +259,37 @@ FEA_state fea_init(int num_elements_x, int num_elements_y)
         -1.0f;
 
     fea.displacements.setZero(num_dofs);
+
+    const auto kernel_size =
+        2 * static_cast<Eigen::Index>(std::ceil(radius_min)) - 1;
+    const float kernel_min_coord {-std::ceil(radius_min) + 1.0f};
+    const Eigen::MatrixXf kernel {Eigen::MatrixXf::NullaryExpr(
+        kernel_size,
+        kernel_size,
+        [radius_min, kernel_min_coord](Eigen::Index i, Eigen::Index j)
+        {
+            const auto y = kernel_min_coord + static_cast<float>(i);
+            const auto x = kernel_min_coord + static_cast<float>(j);
+            return std::max(radius_min - std::hypot(x, y), 0.0f);
+        })};
+    fea.filter =
+        filter(Eigen::MatrixXf::Ones(num_elements_y, num_elements_x), kernel);
+
+    fea.design_variables.setZero(num_elements);
+    fea.design_variables_physical.setZero(num_elements);
+    fea.design_variables_old.setOnes(num_elements);
+    fea.design_variables(fea.active_elements).array() =
+        (volume_fraction *
+             static_cast<float>(num_elements - fea.passive_solid.size()) -
+         static_cast<float>(fea.passive_solid.size())) /
+        static_cast<float>(fea.active_elements.size());
+    fea.design_variables(fea.passive_solid).array() = 1.0f;
+
+    fea.stiffness_derivative.setZero(num_elements);
+
+    fea.volume_derivative.setZero(num_elements);
+    fea.volume_derivative(fea.active_elements).array() =
+        1.0f / static_cast<float>(num_elements) / volume_fraction;
 
     timer_stop(t, "fea_init");
 
@@ -280,14 +357,8 @@ void fea_solve(FEA_state &fea)
     timer_stop(global_t, "fea_solve");
 }
 
-void fea_init_optimization(FEA_state &fea,
-                           float volume_fraction,
-                           float penalization,
-                           float radius_min,
-                           float move)
-{
-}
-
 void fea_optimization_step(FEA_state &fea)
 {
+    const auto t = timer_start();
+    timer_stop(t, "fea_optimization_step");
 }

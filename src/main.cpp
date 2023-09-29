@@ -10,14 +10,15 @@ int main()
     try
     {
 #if 1
-        auto state = fea_init(20, 10);
-
         constexpr float volume_fraction {0.2f};
         constexpr float penalization {3.0f};
         constexpr float radius_min {2.0f};
         constexpr float move {0.2f};
-        fea_init_optimization(
-            state, volume_fraction, penalization, radius_min, move);
+        
+        auto fea =
+            fea_init(20, 10, volume_fraction, penalization, radius_min, move);
+
+        fea_optimization_step(fea);
 
         // fea_solve(state);
         // return application_main(state);
