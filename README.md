@@ -26,7 +26,7 @@ cmake --build build --target mechanisms
 ## Notes
 
 - `EIGEN_NO_AUTOMATIC_RESIZING` apparently breaks some operations. For example,
-  when assigning a default-constructed dense `dst` to a sparse `src`, the
+  when a default-constructed dense `dst` is assigned a sparse `src`, the
   fundamental operations executed are:
   ```
   dst._resize_to_match(src);
