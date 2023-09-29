@@ -10,7 +10,7 @@ int main()
     try
     {
 #if 1
-        auto state = fea_init(200, 100);
+        auto state = fea_init(20, 10);
 
         constexpr float volume_fraction {0.2f};
         constexpr float penalization {3.0f};

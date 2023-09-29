@@ -173,7 +173,7 @@ FEA_state fea_init(int num_elements_x, int num_elements_y)
     }
 
     fea.young_moduli.setConstant(num_elements, young_modulus);
-    load_densities(fea.young_moduli, "../densities.txt");
+    //load_densities(fea.young_moduli, "../densities.txt");
 
     fea.passive_solid = {};
     fea.passive_void = {};
@@ -195,6 +195,8 @@ FEA_state fea_init(int num_elements_x, int num_elements_y)
     int current_stiffness_matrix_index {0};
     for (Eigen::Index i {0}; i < fea.num_dofs; ++i)
     {
+        // TODO: this can probably be optimized just like
+        // filtered_index_vector
         if (std::binary_search(fea.free_dofs.cbegin(), fea.free_dofs.cend(), i))
         {
             fea.all_to_free(i) = current_stiffness_matrix_index;

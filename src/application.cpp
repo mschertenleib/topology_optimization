@@ -80,10 +80,14 @@ void update(
 
     // ImPlot::ShowDemoWindow();
 
-    if (ImGui::Begin("Test window"))
+    if (ImGui::Begin("Displacements"))
     {
         plot_matrix("Displacements X", displacements_x);
         plot_matrix("Displacements Y", displacements_y);
+    }
+    ImGui::End();
+    if (ImGui::Begin("Densities"))
+    {
         plot_matrix("Densities", densities);
     }
     ImGui::End();
@@ -112,7 +116,7 @@ int application_main(const FEA_state &fea_state)
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
     const auto window {
-        glfwCreateWindow(1000, 1250, "mechanisms", nullptr, nullptr)};
+        glfwCreateWindow(1000, 850, "mechanisms", nullptr, nullptr)};
     if (window == nullptr)
     {
         return EXIT_FAILURE;
