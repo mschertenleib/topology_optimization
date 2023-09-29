@@ -68,17 +68,23 @@ void plot_matrix(
     ImPlot::PopColormap();
 }
 
-void update(
-    const Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-        &displacements_x,
-    const Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-        &displacements_y,
-    const Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-        &densities)
+void update(FEA_state &fea)
 {
-    ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
+    fea_optimization_step(fea);
 
-    // ImPlot::ShowDemoWindow();
+    const Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
+        displacements_x {fea.displacements(Eigen::seq(0, Eigen::last, 2))
+                             .eval()
+                             .reshaped(fea.num_nodes_y, fea.num_nodes_x)};
+    const Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
+        displacements_y {fea.displacements(Eigen::seq(1, Eigen::last, 2))
+                             .eval()
+                             .reshaped(fea.num_nodes_y, fea.num_nodes_x)};
+    const Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
+        densities {fea.design_variables_physical.reshaped(fea.num_elements_y,
+                                                          fea.num_elements_x)};
+
+    ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
 
     if (ImGui::Begin("Displacements"))
     {
@@ -95,7 +101,7 @@ void update(
 
 } // namespace
 
-int application_main(const FEA_state &fea_state)
+int application_main(FEA_state &fea)
 {
     glfwSetErrorCallback(
         [](int error, const char *description) {
@@ -158,20 +164,6 @@ int application_main(const FEA_state &fea_state)
     ImPlot::CreateContext();
     const Scope_guard implot_guard([] { ImPlot::DestroyContext(); });
 
-    const Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-        displacements_x {
-            fea_state.displacements(Eigen::seq(0, Eigen::last, 2))
-                .eval()
-                .reshaped(fea_state.num_nodes_y, fea_state.num_nodes_x)};
-    const Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-        densities {fea_state.young_moduli.reshaped(fea_state.num_elements_y,
-                                                   fea_state.num_elements_x)};
-    const Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-        displacements_y {
-            fea_state.displacements(Eigen::seq(1, Eigen::last, 2))
-                .eval()
-                .reshaped(fea_state.num_nodes_y, fea_state.num_nodes_x)};
-
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
@@ -180,7 +172,7 @@ int application_main(const FEA_state &fea_state)
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        update(displacements_x, displacements_y, densities);
+        update(fea);
 
         ImGui::Render();
         int framebuffer_width {};

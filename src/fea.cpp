@@ -398,16 +398,55 @@ void fea_optimization_step(FEA_state &fea)
                 .cwiseProduct(displacement_matrix)
                 .rowwise()
                 .sum())};
-    const auto filtered_compliance_derivative = filter(
-        compliance_derivative.reshaped(fea.num_elements_y, fea.num_elements_x)
-                .array() /
-            fea.filter_weights,
-        fea.filter_kernel);
-    const auto filtered_volume_derivative = filter(
-        fea.volume_derivative.reshaped(fea.num_elements_y, fea.num_elements_x)
-                .array() /
-            fea.filter_weights,
-        fea.filter_kernel);
+    const Eigen::VectorXf filtered_compliance_derivative {
+        filter(compliance_derivative
+                       .reshaped(fea.num_elements_y, fea.num_elements_x)
+                       .array() /
+                   fea.filter_weights,
+               fea.filter_kernel)
+            .reshaped()};
+    const Eigen::VectorXf filtered_volume_derivative {
+        filter(fea.volume_derivative
+                       .reshaped(fea.num_elements_y, fea.num_elements_x)
+                       .array() /
+                   fea.filter_weights,
+               fea.filter_kernel)
+            .reshaped()};
+
+    const Eigen::VectorXf active_design_variables {
+        fea.design_variables(fea.active_elements)};
+    const Eigen::VectorXf lower_bound {active_design_variables.array() -
+                                       fea.move};
+    const Eigen::VectorXf upper_bound {active_design_variables.array() +
+                                       fea.move};
+    const Eigen::VectorXf resizing_rule_constant {
+        active_design_variables.array() *
+        (-filtered_compliance_derivative(fea.active_elements).array() /
+         filtered_volume_derivative(fea.active_elements).array())
+            .sqrt()
+            .real()};
+    // Initial estimate for LM
+    auto l1 = 0.0f;
+    auto l2 = resizing_rule_constant.mean() / fea.volume_fraction;
+    // OC resizing rule
+    while ((l2 - l1) / (l2 + l1) > 1e-4f)
+    {
+        const auto l_middle = 0.5f * (l1 + l2);
+        fea.design_variables(fea.active_elements) =
+            (resizing_rule_constant / l_middle)
+                .cwiseMin(upper_bound)
+                .cwiseMin(1.0f)
+                .cwiseMax(lower_bound)
+                .cwiseMax(0.0f);
+        if (fea.design_variables.mean() > fea.volume_fraction)
+        {
+            l1 = l_middle;
+        }
+        else
+        {
+            l2 = l_middle;
+        }
+    }
 
     timer_stop(t, "fea_optimization_step");
 
