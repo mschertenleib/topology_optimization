@@ -191,7 +191,7 @@ void solve_equilibrium_system(FEA_state &fea)
     }
 
     timer_stop(t, "solving system");
-    timer_stop(global_t, "fea_solve");
+    timer_stop(global_t, "solve_equilibrium_system");
 }
 
 } // namespace
@@ -368,17 +368,6 @@ FEA_state fea_init(int num_elements_x,
     return fea;
 }
 
-void fea_solve(FEA_state &fea)
-{
-    fea.young_moduli.setConstant(fea.num_elements, fea.young_modulus);
-
-    fea.stiffness_matrix_values =
-        (fea.element_stiffness_matrix_values * fea.young_moduli.transpose())
-            .reshaped();
-
-    solve_equilibrium_system(fea);
-}
-
 void fea_optimization_step(FEA_state &fea)
 {
     const auto t = timer_start();
@@ -391,9 +380,9 @@ void fea_optimization_step(FEA_state &fea)
             .reshaped()};
     fea.design_variables_physical(fea.active_elements) =
         design_variables_filtered(fea.active_elements);
-    const auto change =
+    /*const auto change =
         (fea.design_variables_physical - fea.design_variables_old).norm() /
-        std::sqrt(static_cast<float>(fea.num_elements));
+        std::sqrt(static_cast<float>(fea.num_elements));*/
     fea.design_variables_old = fea.design_variables_physical;
 
     fea.young_moduli =
@@ -449,8 +438,8 @@ void fea_optimization_step(FEA_state &fea)
             .sqrt()
             .real()};
     // Initial estimate for LM
-    auto l1 = 0.0f;
-    auto l2 = resizing_rule_constant.mean() / fea.volume_fraction;
+    float l1 {0.0f};
+    float l2 {resizing_rule_constant.mean() / fea.volume_fraction};
     // OC resizing rule
     while ((l2 - l1) / (l2 + l1) > 1e-4f)
     {
@@ -472,6 +461,4 @@ void fea_optimization_step(FEA_state &fea)
     }
 
     timer_stop(t, "fea_optimization_step");
-
-    std::cout << "Change: " << change << '\n';
 }

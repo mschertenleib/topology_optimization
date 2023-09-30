@@ -49,8 +49,6 @@ struct FEA_state
                                  float radius_min,
                                  float move);
 
-void fea_solve(FEA_state &fea);
-
 void fea_optimization_step(FEA_state &fea);
 
 #endif // FEA_HPP
