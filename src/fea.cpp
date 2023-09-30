@@ -62,10 +62,48 @@ filtered_index_vector(int size, const Eigen::VectorXi &discard)
     return result;
 }
 
+// Returns a [m.size() by neighboring_rows * neighboring_cols] matrix, for which
+// each row is the flattened block of elements surrounding the corresponding
+// element in m, padding with 0 for out-of-bounds elements
+[[nodiscard]] Eigen::MatrixXf neighborhood(const Eigen::MatrixXf &m,
+                                           Eigen::Index neighboring_rows,
+                                           Eigen::Index neighboring_cols)
+{
+    Eigen::MatrixXf result(m.size(), neighboring_rows * neighboring_cols);
+    result.setZero();
+
+    for (Eigen::Index j {0}; j < neighboring_cols; ++j)
+    {
+        for (Eigen::Index i {0}; i < neighboring_rows; ++i)
+        {
+            const auto shift = (j - neighboring_cols / 2) * m.rows() +
+                               (i - neighboring_rows / 2);
+            const auto result_col = j * neighboring_rows + i;
+            const auto result_min_row = std::max(shift, Eigen::Index {0});
+            const auto result_max_row =
+                std::min(m.size() - 1 + shift, m.size() - 1);
+            const auto m_min_index = std::max(-shift, Eigen::Index {0});
+            const auto m_max_index =
+                std::min(m.size() - 1 - shift, m.size() - 1);
+            result(Eigen::seq(result_min_row, result_max_row), result_col) =
+                m.reshaped()(Eigen::seq(m_min_index, m_max_index));
+        }
+    }
+
+    return result;
+}
+
 [[nodiscard]] Eigen::ArrayXXf filter(const Eigen::ArrayXXf &m,
                                      const Eigen::ArrayXXf &kernel)
 {
-    // TODO: make this faster by using Eigen's GEMM
+#if 1
+
+    return (neighborhood(m, kernel.rows(), kernel.cols()) *
+            kernel.matrix().reshaped())
+        .reshaped(m.rows(), m.cols())
+        .array();
+
+#else
 
     Eigen::ArrayXXf result;
     result.resizeLike(m);
@@ -95,6 +133,8 @@ filtered_index_vector(int size, const Eigen::VectorXi &discard)
     }
 
     return result;
+
+#endif
 }
 
 void load_densities(Eigen::VectorXf &densities, const char *file_name)
