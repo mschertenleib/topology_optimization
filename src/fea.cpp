@@ -137,23 +137,6 @@ filtered_index_vector(int size, const Eigen::VectorXi &discard)
 #endif
 }
 
-void load_densities(Eigen::VectorXf &densities, const char *file_name)
-{
-    assert(densities.size() == 100 * 200);
-
-    std::ifstream file(file_name);
-    if (!file)
-    {
-        std::cerr << "Failed to open \"" << file_name << "\"\n";
-        return;
-    }
-
-    for (auto &value : densities)
-    {
-        file >> value;
-    }
-}
-
 void solve_equilibrium_system(FEA_state &fea)
 {
     const auto global_t = timer_start();
