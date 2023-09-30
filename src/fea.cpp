@@ -461,4 +461,5 @@ void fea_optimization_step(FEA_state &fea)
     }
 
     timer_stop(t, "fea_optimization_step");
+    std::cout << '\n';
 }
