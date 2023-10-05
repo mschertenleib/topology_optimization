@@ -380,9 +380,6 @@ void fea_optimization_step(FEA_state &fea)
             .reshaped()};
     fea.design_variables_physical(fea.active_elements) =
         design_variables_filtered(fea.active_elements);
-    /*const auto change =
-        (fea.design_variables_physical - fea.design_variables_old).norm() /
-        std::sqrt(static_cast<float>(fea.num_elements));*/
     fea.design_variables_old = fea.design_variables_physical;
 
     fea.young_moduli =
