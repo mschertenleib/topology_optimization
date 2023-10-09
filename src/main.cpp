@@ -15,7 +15,7 @@ int main()
         constexpr float move {0.2f};
 
         auto fea =
-            fea_init(20, 10, volume_fraction, penalization, radius_min, move);
+            fea_init(60, 30, volume_fraction, penalization, radius_min, move);
 
         return application_main(fea);
     }

@@ -96,7 +96,8 @@ filtered_index_vector(int size, const Eigen::VectorXi &discard)
 [[nodiscard]] Eigen::ArrayXXf filter(const Eigen::ArrayXXf &m,
                                      const Eigen::ArrayXXf &kernel)
 {
-#if 1
+#if 0
+// FIXME: this is broken and does not give the right result
 
     return (neighborhood(m, kernel.rows(), kernel.cols()) *
             kernel.matrix().reshaped())
