@@ -1,8 +1,7 @@
-# mechanisms
+# topology_optimization
 
-This project is developed as a personal learning tool for the implementation of
-stress-strain FEA, topology optimization, and other topics related to
-compliant and rigid mechanisms.
+This project implements from scratch stress-strain finite element analysis and
+topology optimization.
 
 ## Build
 
@@ -10,10 +9,10 @@ All dependencies are handled
 by [CPM.cmake](https://github.com/cpm-cmake/CPM.cmake).
 
 ```
-git clone https://github.com/mschertenleib/mechanisms.git
-cd mechanisms
+git clone https://github.com/mschertenleib/topology_optimization.git
+cd topology_optimization
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --target mechanisms
+cmake --build build --target topology_optimization
 ```
 
 ## Dependencies

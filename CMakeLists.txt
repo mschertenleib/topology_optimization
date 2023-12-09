@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.19)
 
-project(mechanisms LANGUAGES CXX)
+project(topology_optimization LANGUAGES CXX)
 
 
 set(CPM_DOWNLOAD_VERSION 0.38.2)
@@ -105,14 +105,14 @@ target_include_directories(implot SYSTEM
 target_link_libraries(implot PRIVATE imgui)
 
 
-add_executable(mechanisms
+add_executable(topology_optimization
         src/main.cpp
         src/application.cpp src/application.hpp
         src/fea.cpp src/fea.hpp
 )
-target_include_directories(mechanisms SYSTEM PRIVATE ${eigen_SOURCE_DIR})
-target_compile_features(mechanisms PRIVATE cxx_std_20)
-target_link_libraries(mechanisms PRIVATE
+target_include_directories(topology_optimization SYSTEM PRIVATE ${eigen_SOURCE_DIR})
+target_compile_features(topology_optimization PRIVATE cxx_std_20)
+target_link_libraries(topology_optimization PRIVATE
         OpenGL::GL
         glfw
         imgui
@@ -143,11 +143,11 @@ set(gcc_warnings
         -Wlogical-op
 )
 if (CMAKE_CXX_COMPILER_ID MATCHES ".*Clang")
-    target_compile_options(mechanisms PRIVATE ${clang_warnings})
+    target_compile_options(topology_optimization PRIVATE ${clang_warnings})
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    target_compile_options(mechanisms PRIVATE ${gcc_warnings})
+    target_compile_options(topology_optimization PRIVATE ${gcc_warnings})
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-    target_compile_options(mechanisms PRIVATE /W4)
+    target_compile_options(topology_optimization PRIVATE /W4)
 else ()
     message(WARNING "No warnings set for compiler ${CMAKE_CXX_COMPILER_ID}")
 endif ()

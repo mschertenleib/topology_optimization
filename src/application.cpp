@@ -133,7 +133,7 @@ int application_main(FEA_state &fea)
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
     const auto window {
-        glfwCreateWindow(1000, 850, "mechanisms", nullptr, nullptr)};
+        glfwCreateWindow(1000, 850, "Topology Optimization", nullptr, nullptr)};
     if (window == nullptr)
     {
         return EXIT_FAILURE;
