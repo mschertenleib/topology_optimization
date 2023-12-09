@@ -11,15 +11,10 @@
 
 #include <cstdlib>
 #include <iostream>
-#include <semaphore>
-#include <thread>
 #include <utility>
 
 namespace
 {
-
-std::binary_semaphore g_fea_computing_finished {0};
-std::binary_semaphore g_fea_read_finished {0};
 
 template <typename F>
 class Scope_guard
@@ -82,18 +77,14 @@ void update_ui(
     Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
         &densities)
 {
-    if (g_fea_computing_finished.try_acquire())
-    {
-        displacements_x = fea.displacements(Eigen::seq(0, Eigen::last, 2))
-                              .eval()
-                              .reshaped(fea.num_nodes_y, fea.num_nodes_x);
-        displacements_y = fea.displacements(Eigen::seq(1, Eigen::last, 2))
-                              .eval()
-                              .reshaped(fea.num_nodes_y, fea.num_nodes_x);
-        densities = fea.design_variables_physical.reshaped(fea.num_elements_y,
-                                                           fea.num_elements_x);
-        g_fea_read_finished.release();
-    }
+    displacements_x = fea.displacements(Eigen::seq(0, Eigen::last, 2))
+                          .eval()
+                          .reshaped(fea.num_nodes_y, fea.num_nodes_x);
+    displacements_y = fea.displacements(Eigen::seq(1, Eigen::last, 2))
+                          .eval()
+                          .reshaped(fea.num_nodes_y, fea.num_nodes_x);
+    densities = fea.design_variables_physical.reshaped(fea.num_elements_y,
+                                                       fea.num_elements_x);
 
     ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
 
@@ -184,21 +175,6 @@ int application_main(FEA_state &fea)
         densities(fea.num_elements_y, fea.num_elements_x);
     densities.setZero();
 
-    std::jthread fea_thread(
-        [&fea](const std::stop_token &stop_token)
-        {
-            while (!stop_token.stop_requested())
-            {
-                g_fea_read_finished.acquire();
-
-                fea_optimization_step(fea);
-
-                g_fea_computing_finished.release();
-            }
-        });
-
-    g_fea_read_finished.release();
-
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
@@ -206,6 +182,8 @@ int application_main(FEA_state &fea)
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
+
+        fea_optimization_step(fea);
 
         update_ui(fea, displacements_x, displacements_y, densities);
 
