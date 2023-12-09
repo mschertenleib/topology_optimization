@@ -109,6 +109,7 @@ add_executable(topology_optimization
         src/main.cpp
         src/application.cpp src/application.hpp
         src/fea.cpp src/fea.hpp
+        src/utility.hpp
 )
 target_include_directories(topology_optimization SYSTEM PRIVATE ${eigen_SOURCE_DIR})
 target_compile_features(topology_optimization PRIVATE cxx_std_20)

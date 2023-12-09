@@ -1,5 +1,6 @@
 #include "application.hpp"
 #include "fea.hpp"
+#include "utility.hpp"
 
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
@@ -15,28 +16,6 @@
 
 namespace
 {
-
-template <typename F>
-class Scope_guard
-{
-public:
-    explicit Scope_guard(F &&f) : m_f {std::forward<F>(f)}
-    {
-    }
-
-    ~Scope_guard() noexcept
-    {
-        m_f();
-    }
-
-    Scope_guard(const Scope_guard &) = delete;
-    Scope_guard(Scope_guard &&) noexcept = delete;
-    Scope_guard &operator=(const Scope_guard &) = delete;
-    Scope_guard &operator=(Scope_guard &&) noexcept = delete;
-
-private:
-    F m_f;
-};
 
 void plot_matrix(
     const char *title_id,
@@ -115,30 +94,30 @@ int application_main(FEA_state &fea)
     {
         return EXIT_FAILURE;
     }
-    const Scope_guard glfw_guard([] { glfwTerminate(); });
+    SCOPE_EXIT([] { glfwTerminate(); });
 
-    constexpr auto glsl_version {"#version 150"};
+    constexpr auto glsl_version = "#version 150";
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
-    const auto window {
-        glfwCreateWindow(1000, 850, "Topology Optimization", nullptr, nullptr)};
+    const auto window =
+        glfwCreateWindow(1000, 850, "Topology Optimization", nullptr, nullptr);
     if (window == nullptr)
     {
         return EXIT_FAILURE;
     }
-    const Scope_guard window_guard([window] { glfwDestroyWindow(window); });
+    SCOPE_EXIT([window] { glfwDestroyWindow(window); });
 
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1);
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    const Scope_guard imgui_guard([] { ImGui::DestroyContext(); });
+    SCOPE_EXIT([] { ImGui::DestroyContext(); });
 
-    auto &io {ImGui::GetIO()};
+    auto &io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
@@ -153,17 +132,16 @@ int application_main(FEA_state &fea)
     {
         return EXIT_FAILURE;
     }
-    const Scope_guard imgui_platform_guard([] { ImGui_ImplGlfw_Shutdown(); });
+    SCOPE_EXIT([] { ImGui_ImplGlfw_Shutdown(); });
 
     if (!ImGui_ImplOpenGL3_Init(glsl_version))
     {
         return EXIT_FAILURE;
     }
-    const Scope_guard imgui_renderer_guard([]
-                                           { ImGui_ImplOpenGL3_Shutdown(); });
+    SCOPE_EXIT([] { ImGui_ImplOpenGL3_Shutdown(); });
 
     ImPlot::CreateContext();
-    const Scope_guard implot_guard([] { ImPlot::DestroyContext(); });
+    SCOPE_EXIT([] { ImPlot::DestroyContext(); });
 
     Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
         displacements_x(fea.num_nodes_y, fea.num_nodes_x);
