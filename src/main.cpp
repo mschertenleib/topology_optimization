@@ -1,5 +1,6 @@
 #include "application.hpp"
 #include "fea.hpp"
+#include "utility.hpp"
 
 #include <cstdlib>
 #include <iostream>

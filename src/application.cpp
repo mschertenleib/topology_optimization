@@ -12,7 +12,6 @@
 
 #include <cstdlib>
 #include <iostream>
-#include <utility>
 
 namespace
 {
@@ -54,7 +53,8 @@ void update_ui(
     Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
         &displacements_y,
     Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-        &densities)
+        &densities,
+    const std::vector<Profile_entry> &profile_entries)
 {
     displacements_x = fea.displacements(Eigen::seq(0, Eigen::last, 2))
                           .eval()
@@ -72,7 +72,41 @@ void update_ui(
         ImGui::Text("%.3f ms/frame (%.1f fps)",
                     1000.0 / static_cast<double>(ImGui::GetIO().Framerate),
                     static_cast<double>(ImGui::GetIO().Framerate));
-        // TODO: detailed performance stats
+
+        double parent_duration_ms {};
+        for (std::size_t i {0}; i < profile_entries.size(); ++i)
+        {
+            const auto &entry = profile_entries[i];
+
+            std::ostringstream indent;
+            for (std::uint32_t level {0}; level < entry.level; ++level)
+            {
+                indent << "|   ";
+            }
+
+            const auto duration_ms =
+                std::chrono::duration<double>(entry.t_end - entry.t_start)
+                    .count() *
+                1000.0;
+
+            double duration_percentage;
+            if (entry.level == 0)
+            {
+                parent_duration_ms = duration_ms;
+                duration_percentage = 100.0;
+            }
+            else
+            {
+                duration_percentage =
+                    (duration_ms / parent_duration_ms) * 100.0;
+            }
+
+            ImGui::Text("%s%s: %.3f ms (%.2f%%)",
+                        indent.str().c_str(),
+                        entry.label,
+                        duration_ms,
+                        duration_percentage);
+        }
     }
     ImGui::End();
 
@@ -170,9 +204,14 @@ int application_main(FEA_state &fea)
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
+        profile_begin_frame();
+
         fea_optimization_step(fea);
 
-        update_ui(fea, displacements_x, displacements_y, densities);
+        const auto &profile_entries = profile_end_frame();
+
+        update_ui(
+            fea, displacements_x, displacements_y, densities, profile_entries);
 
         ImGui::Render();
         int framebuffer_width {};

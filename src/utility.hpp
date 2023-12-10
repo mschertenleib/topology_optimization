@@ -1,6 +1,8 @@
 #ifndef UTILITY_HPP
 #define UTILITY_HPP
 
+#include <array>
+#include <chrono>
 #include <stdexcept>
 #include <utility>
 
@@ -67,5 +69,25 @@ private:
 
 #define SCOPE_EXIT(f) const Scope_exit CONCATENATE(scope_exit_, __LINE__)(f)
 #define SCOPE_FAIL(f) const Scope_fail CONCATENATE(scope_fail_, __LINE__)(f)
+
+struct Profile_entry
+{
+    const char *label {};
+    std::uint32_t level {};
+    std::chrono::steady_clock::time_point t_start {};
+    std::chrono::steady_clock::time_point t_end {};
+};
+
+void profile_begin_frame();
+
+[[nodiscard]] std::size_t profile_begin(const char *label);
+
+void profile_end(std::size_t index);
+
+[[nodiscard]] const std::vector<Profile_entry> &profile_end_frame();
+
+#define PROFILE_BEGIN(label)                                                   \
+    const auto CONCATENATE(profile_entry_, label) = profile_begin(#label)
+#define PROFILE_END(label) profile_end(CONCATENATE(profile_entry_, label))
 
 #endif // UTILITY_HPP

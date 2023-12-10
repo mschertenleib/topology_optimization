@@ -1,29 +1,14 @@
 #include "fea.hpp"
+#include "utility.hpp"
 
 #include <Eigen/SparseCholesky>
 #include <Eigen/SparseCore>
 
-#include <chrono>
-#include <fstream>
 #include <iostream>
 #include <sstream>
 
 namespace
 {
-
-[[nodiscard]] inline std::chrono::steady_clock::time_point timer_start()
-{
-    return std::chrono::steady_clock::now();
-}
-
-inline void timer_stop(std::chrono::steady_clock::time_point start,
-                       const char *label)
-{
-    const auto end = std::chrono::steady_clock::now();
-    std::cout << label << ": "
-              << std::chrono::duration<double>(end - start).count() * 1'000.0
-              << " ms\n";
-}
 
 [[nodiscard]] constexpr const char *
 to_string(Eigen::ComputationInfo computation_info) noexcept
@@ -140,8 +125,8 @@ filtered_index_vector(int size, const Eigen::VectorXi &discard)
 
 void solve_equilibrium_system(FEA_state &fea)
 {
-    const auto global_t = timer_start();
-    auto t = timer_start();
+    PROFILE_BEGIN(solve_equilibrium_system);
+    PROFILE_BEGIN(stiffness_matrix_assembly);
 
     const Eigen::Index num_values {fea.stiffness_matrix_values.size()};
     std::vector<Eigen::Triplet<float>> triplets;
@@ -164,8 +149,8 @@ void solve_equilibrium_system(FEA_state &fea)
     stiffness_matrix.setFromTriplets(triplets.cbegin(), triplets.cend());
     stiffness_matrix.prune(0.0f);
 
-    timer_stop(t, "stiffness matrix assembly");
-    t = timer_start();
+    PROFILE_END(stiffness_matrix_assembly);
+    PROFILE_BEGIN(stiffness_matrix_decomposition);
 
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<float>, Eigen::Lower> solver;
     solver.compute(stiffness_matrix);
@@ -176,8 +161,8 @@ void solve_equilibrium_system(FEA_state &fea)
         throw std::runtime_error(message.str());
     }
 
-    timer_stop(t, "stiffness matrix decomposition");
-    t = timer_start();
+    PROFILE_END(stiffness_matrix_decomposition);
+    PROFILE_BEGIN(solving_system);
 
     Eigen::VectorXf free_displacements(fea.free_dofs.size());
     free_displacements = solver.solve(fea.forces);
@@ -191,8 +176,8 @@ void solve_equilibrium_system(FEA_state &fea)
         throw std::runtime_error(message.str());
     }
 
-    timer_stop(t, "solving system");
-    timer_stop(global_t, "solve_equilibrium_system");
+    PROFILE_END(solving_system);
+    PROFILE_END(solve_equilibrium_system);
 }
 
 } // namespace
@@ -204,8 +189,6 @@ FEA_state fea_init(int num_elements_x,
                    float radius_min,
                    float move)
 {
-    const auto t = timer_start();
-
     FEA_state fea {};
     fea.num_elements_x = num_elements_x;
     fea.num_elements_y = num_elements_y;
@@ -364,14 +347,12 @@ FEA_state fea_init(int num_elements_x,
     fea.volume_derivative(fea.active_elements).array() =
         1.0f / static_cast<float>(fea.num_elements) / volume_fraction;
 
-    timer_stop(t, "fea_init");
-
     return fea;
 }
 
 void fea_optimization_step(FEA_state &fea)
 {
-    const auto t = timer_start();
+    PROFILE_BEGIN(fea_optimization_step);
 
     const Eigen::VectorXf design_variables_filtered {
         (filter(fea.design_variables.reshaped(fea.num_elements_y,
@@ -458,6 +439,5 @@ void fea_optimization_step(FEA_state &fea)
         }
     }
 
-    timer_stop(t, "fea_optimization_step");
-    std::cout << '\n';
+    PROFILE_END(fea_optimization_step);
 }
