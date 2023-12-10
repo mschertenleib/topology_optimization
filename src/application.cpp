@@ -67,6 +67,15 @@ void update_ui(
 
     ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
 
+    if (ImGui::Begin("Stats"))
+    {
+        ImGui::Text("%.3f ms/frame (%.1f fps)",
+                    1000.0 / static_cast<double>(ImGui::GetIO().Framerate),
+                    static_cast<double>(ImGui::GetIO().Framerate));
+        // TODO: detailed performance stats
+    }
+    ImGui::End();
+
     if (ImGui::Begin("Displacements"))
     {
         plot_matrix("Displacements X", displacements_x);
