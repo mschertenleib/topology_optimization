@@ -28,10 +28,10 @@ to_string(Eigen::ComputationInfo computation_info) noexcept
 filtered_index_vector(int size, const Eigen::VectorXi &discard)
 {
     Eigen::VectorXi result(size - discard.size());
-    Eigen::Index index_result {0};
-    Eigen::Index index_discard {0};
+    Eigen::Index index_result{0};
+    Eigen::Index index_discard{0};
 
-    for (int i {0}; i < size; ++i)
+    for (int i{0}; i < size; ++i)
     {
         if (index_discard < discard.size() && i == discard(index_discard))
         {
@@ -57,17 +57,17 @@ filtered_index_vector(int size, const Eigen::VectorXi &discard)
     Eigen::MatrixXf result(m.size(), neighboring_rows * neighboring_cols);
     result.setZero();
 
-    for (Eigen::Index j {0}; j < neighboring_cols; ++j)
+    for (Eigen::Index j{0}; j < neighboring_cols; ++j)
     {
-        for (Eigen::Index i {0}; i < neighboring_rows; ++i)
+        for (Eigen::Index i{0}; i < neighboring_rows; ++i)
         {
             const auto shift = (j - neighboring_cols / 2) * m.rows() +
                                (i - neighboring_rows / 2);
             const auto result_col = j * neighboring_rows + i;
-            const auto result_min_row = std::max(shift, Eigen::Index {0});
+            const auto result_min_row = std::max(shift, Eigen::Index{0});
             const auto result_max_row =
                 std::min(m.size() - 1 + shift, m.size() - 1);
-            const auto m_min_index = std::max(-shift, Eigen::Index {0});
+            const auto m_min_index = std::max(-shift, Eigen::Index{0});
             const auto m_max_index =
                 std::min(m.size() - 1 - shift, m.size() - 1);
             result(Eigen::seq(result_min_row, result_max_row), result_col) =
@@ -94,17 +94,17 @@ filtered_index_vector(int size, const Eigen::VectorXi &discard)
     Eigen::ArrayXXf result;
     result.resizeLike(m);
 
-    for (Eigen::Index i {0}; i < result.rows(); ++i)
+    for (Eigen::Index i{0}; i < result.rows(); ++i)
     {
-        for (Eigen::Index j {0}; j < result.cols(); ++j)
+        for (Eigen::Index j{0}; j < result.cols(); ++j)
         {
-            float sum {0.0f};
-            for (Eigen::Index k {0}; k < kernel.rows(); ++k)
+            float sum{0.0f};
+            for (Eigen::Index k{0}; k < kernel.rows(); ++k)
             {
                 const auto m_i = i + k - kernel.rows() / 2;
                 if (m_i >= 0 && m_i < m.rows())
                 {
-                    for (Eigen::Index l {0}; l < kernel.cols(); ++l)
+                    for (Eigen::Index l{0}; l < kernel.cols(); ++l)
                     {
                         const auto m_j = j + l - kernel.cols() / 2;
                         if (m_j >= 0 && m_j < m.cols())
@@ -125,13 +125,13 @@ filtered_index_vector(int size, const Eigen::VectorXi &discard)
 
 void solve_equilibrium_system(FEA_state &fea)
 {
-    PROFILE_BEGIN(solve_equilibrium_system);
-    PROFILE_BEGIN(stiffness_matrix_assembly);
+    Scope_profiler prof_solve_system("Solve equilibrium system");
+    Scope_profiler prof_assembly("Stiffness matrix assembly");
 
-    const Eigen::Index num_values {fea.stiffness_matrix_values.size()};
+    const Eigen::Index num_values{fea.stiffness_matrix_values.size()};
     std::vector<Eigen::Triplet<float>> triplets;
     triplets.reserve(static_cast<std::size_t>(num_values));
-    for (Eigen::Index i {0}; i < num_values; ++i)
+    for (Eigen::Index i{0}; i < num_values; ++i)
     {
         const auto mapped_i =
             fea.all_to_free(fea.stiffness_matrix_indices(i, 0));
@@ -140,7 +140,9 @@ void solve_equilibrium_system(FEA_state &fea)
         if (mapped_i != -1 && mapped_j != -1)
         {
             triplets.emplace_back(
-                mapped_i, mapped_j, fea.stiffness_matrix_values(i));
+                mapped_i,
+                mapped_j,
+                fea.stiffness_matrix_values(i));
         }
     }
 
@@ -149,8 +151,8 @@ void solve_equilibrium_system(FEA_state &fea)
     stiffness_matrix.setFromTriplets(triplets.cbegin(), triplets.cend());
     stiffness_matrix.prune(0.0f);
 
-    PROFILE_END(stiffness_matrix_assembly);
-    PROFILE_BEGIN(stiffness_matrix_decomposition);
+    prof_assembly.stop();
+    Scope_profiler prof_decomposition("Stiffness matrix decomposition");
 
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<float>, Eigen::Lower> solver;
     solver.compute(stiffness_matrix);
@@ -161,8 +163,8 @@ void solve_equilibrium_system(FEA_state &fea)
         throw std::runtime_error(message.str());
     }
 
-    PROFILE_END(stiffness_matrix_decomposition);
-    PROFILE_BEGIN(solving_system);
+    prof_decomposition.stop();
+    Scope_profiler prof_solve("Solving system");
 
     Eigen::VectorXf free_displacements(fea.free_dofs.size());
     free_displacements = solver.solve(fea.forces);
@@ -175,9 +177,6 @@ void solve_equilibrium_system(FEA_state &fea)
         message << "Solving failed: " << to_string(result);
         throw std::runtime_error(message.str());
     }
-
-    PROFILE_END(solving_system);
-    PROFILE_END(solve_equilibrium_system);
 }
 
 } // namespace
@@ -189,7 +188,7 @@ FEA_state fea_init(int num_elements_x,
                    float radius_min,
                    float move)
 {
-    FEA_state fea {};
+    FEA_state fea{};
     fea.num_elements_x = num_elements_x;
     fea.num_elements_y = num_elements_y;
     fea.num_elements = num_elements_x * num_elements_y;
@@ -206,43 +205,43 @@ FEA_state fea_init(int num_elements_x,
     fea.radius_min = radius_min;
     fea.move = move;
 
-    const Eigen::MatrixXi node_indices {
+    const Eigen::MatrixXi node_indices{
         Eigen::VectorXi::LinSpaced(fea.num_nodes, 0, fea.num_nodes - 1)
-            .reshaped(fea.num_nodes_y, fea.num_nodes_x)};
+        .reshaped(fea.num_nodes_y, fea.num_nodes_x)};
 
     // Represents the index of the first DOF of each element
-    const Eigen::VectorXi connectivity_vector {
+    const Eigen::VectorXi connectivity_vector{
         fea.num_dofs_per_node *
         node_indices.topLeftCorner(num_elements_y, num_elements_x)
-            .reshaped(fea.num_elements, 1)};
+                    .reshaped(fea.num_elements, 1)};
 
     // Each row of the connectivity matrix indexes the 8 DOFs of the
     // corresponding element
     fea.connectivity_matrix =
         connectivity_vector.replicate(1, 8).rowwise() +
-        Eigen::RowVector<int, 8> {2,
-                                  3,
-                                  fea.num_dofs_per_node * fea.num_nodes_y + 2,
-                                  fea.num_dofs_per_node * fea.num_nodes_y + 3,
-                                  fea.num_dofs_per_node * fea.num_nodes_y + 0,
-                                  fea.num_dofs_per_node * fea.num_nodes_y + 1,
-                                  0,
-                                  1};
+        Eigen::RowVector<int, 8>{2,
+                                 3,
+                                 fea.num_dofs_per_node * fea.num_nodes_y + 2,
+                                 fea.num_dofs_per_node * fea.num_nodes_y + 3,
+                                 fea.num_dofs_per_node * fea.num_nodes_y + 0,
+                                 fea.num_dofs_per_node * fea.num_nodes_y + 1,
+                                 0,
+                                 1};
 
-    const Eigen::Vector<int, 36> dof_connectivities_i {
+    const Eigen::Vector<int, 36> dof_connectivities_i{
         0, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 2, 3, 4,
         5, 6, 7, 3, 4, 5, 6, 7, 4, 5, 6, 7, 5, 6, 7, 6, 7, 7};
-    const Eigen::Vector<int, 36> dof_connectivities_j {
+    const Eigen::Vector<int, 36> dof_connectivities_j{
         0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2,
         2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 6, 6, 7};
-    const Eigen::VectorXi stiffness_matrix_indices_i {
+    const Eigen::VectorXi stiffness_matrix_indices_i{
         fea.connectivity_matrix(Eigen::all, dof_connectivities_i)
-            .transpose()
-            .reshaped(fea.num_elements * 36, 1)};
-    const Eigen::VectorXi stiffness_matrix_indices_j {
+           .transpose()
+           .reshaped(fea.num_elements * 36, 1)};
+    const Eigen::VectorXi stiffness_matrix_indices_j{
         fea.connectivity_matrix(Eigen::all, dof_connectivities_j)
-            .transpose()
-            .reshaped(fea.num_elements * 36, 1)};
+           .transpose()
+           .reshaped(fea.num_elements * 36, 1)};
 
     fea.stiffness_matrix_indices.resize(stiffness_matrix_indices_i.rows(), 2);
     fea.stiffness_matrix_indices
@@ -250,20 +249,20 @@ FEA_state fea_init(int num_elements_x,
         stiffness_matrix_indices_i.cwiseMin(stiffness_matrix_indices_j);
     fea.stiffness_matrix_values.setZero(36 * fea.num_elements);
 
-    const Eigen::Vector<float, 36> element_stiffness_matrix_values_1 {
-        12, 3,  -6, -3, -6, -3, 0, 3,  12, 3, 0,  -3, -6, -3, -6, 12, -3, 0,
-        -3, -6, 3,  12, 3,  -6, 3, -6, 12, 3, -6, -3, 12, 3,  0,  12, -3, 12};
-    const Eigen::Vector<float, 36> element_stiffness_matrix_values_2 {
-        -4, 3, -2, 9,  2,  -3, 4, -9, -4, -9, 4,  -3, 2,  9,  -2, -4, -3, 4,
-        9,  2, 3,  -4, -9, -2, 3, 2,  -4, 3,  -2, 9,  -4, -9, 4,  -4, -3, -4};
+    const Eigen::Vector<float, 36> element_stiffness_matrix_values_1{
+        12, 3, -6, -3, -6, -3, 0, 3, 12, 3, 0, -3, -6, -3, -6, 12, -3, 0,
+        -3, -6, 3, 12, 3, -6, 3, -6, 12, 3, -6, -3, 12, 3, 0, 12, -3, 12};
+    const Eigen::Vector<float, 36> element_stiffness_matrix_values_2{
+        -4, 3, -2, 9, 2, -3, 4, -9, -4, -9, 4, -3, 2, 9, -2, -4, -3, 4,
+        9, 2, 3, -4, -9, -2, 3, 2, -4, 3, -2, 9, -4, -9, 4, -4, -3, -4};
     fea.element_stiffness_matrix_values =
         1.0f / 24.0f / (1.0f - fea.poisson_ratio * fea.poisson_ratio) *
         (element_stiffness_matrix_values_1 +
          fea.poisson_ratio * element_stiffness_matrix_values_2);
-    Eigen::Index index {0};
-    for (Eigen::Index j {0}; j < 8; ++j)
+    Eigen::Index index{0};
+    for (Eigen::Index j{0}; j < 8; ++j)
     {
-        for (Eigen::Index i {j}; i < 8; ++i)
+        for (Eigen::Index i{j}; i < 8; ++i)
         {
             fea.element_stiffness_matrix(i, j) =
                 fea.element_stiffness_matrix_values(index);
@@ -285,7 +284,9 @@ FEA_state fea_init(int num_elements_x,
 
     Eigen::VectorXi fixed_dofs(fea.num_nodes_y + 1);
     fixed_dofs << Eigen::VectorXi::LinSpaced(
-        fea.num_nodes_y, 0, fea.num_dofs_per_node * fea.num_nodes_y - 1),
+            fea.num_nodes_y,
+            0,
+            fea.num_dofs_per_node * fea.num_nodes_y - 1),
         fea.num_dofs_per_node * node_indices(Eigen::last, Eigen::last) + 1;
     fea.free_dofs = filtered_index_vector(fea.num_dofs, fixed_dofs);
 
@@ -293,8 +294,8 @@ FEA_state fea_init(int num_elements_x,
     // indicates that the corresponding DOF is fixed and hence not present in
     // the stiffness matrix
     fea.all_to_free.resize(fea.num_dofs);
-    int current_stiffness_matrix_index {0};
-    for (Eigen::Index i {0}; i < fea.num_dofs; ++i)
+    int current_stiffness_matrix_index{0};
+    for (Eigen::Index i{0}; i < fea.num_dofs; ++i)
     {
         // TODO: this can probably be optimized just like
         // filtered_index_vector
@@ -317,7 +318,7 @@ FEA_state fea_init(int num_elements_x,
 
     const auto kernel_size =
         2 * static_cast<Eigen::Index>(std::ceil(radius_min)) - 1;
-    const float kernel_min_coord {-std::ceil(radius_min) + 1.0f};
+    const float kernel_min_coord{-std::ceil(radius_min) + 1.0f};
     fea.filter_kernel = Eigen::ArrayXXf::NullaryExpr(
         kernel_size,
         kernel_size,
@@ -336,7 +337,7 @@ FEA_state fea_init(int num_elements_x,
     fea.design_variables_old.setOnes(fea.num_elements);
     fea.design_variables(fea.active_elements).array() =
         (volume_fraction *
-             static_cast<float>(fea.num_elements - fea.passive_solid.size()) -
+         static_cast<float>(fea.num_elements - fea.passive_solid.size()) -
          static_cast<float>(fea.passive_solid.size())) /
         static_cast<float>(fea.active_elements.size());
     fea.design_variables(fea.passive_solid).array() = 1.0f;
@@ -352,14 +353,14 @@ FEA_state fea_init(int num_elements_x,
 
 void fea_optimization_step(FEA_state &fea)
 {
-    PROFILE_BEGIN(fea_optimization_step);
+    Scope_profiler prof_optimization("Optimization step");
 
-    const Eigen::VectorXf design_variables_filtered {
+    const Eigen::VectorXf design_variables_filtered{
         (filter(fea.design_variables.reshaped(fea.num_elements_y,
                                               fea.num_elements_x),
                 fea.filter_kernel) /
          fea.filter_weights)
-            .reshaped()};
+        .reshaped()};
     fea.design_variables_physical(fea.active_elements) =
         design_variables_filtered(fea.active_elements);
     fea.design_variables_old = fea.design_variables_physical;
@@ -367,68 +368,68 @@ void fea_optimization_step(FEA_state &fea)
     fea.young_moduli =
         fea.young_modulus_min +
         fea.design_variables_physical.array().pow(fea.penalization) *
-            (fea.young_modulus - fea.young_modulus_min);
+        (fea.young_modulus - fea.young_modulus_min);
     fea.stiffness_derivative(fea.active_elements) =
         -fea.penalization * (fea.young_modulus - fea.young_modulus_min) *
         fea.design_variables_physical(fea.active_elements)
-            .array()
-            .pow(fea.penalization - 1.0f);
+           .array()
+           .pow(fea.penalization - 1.0f);
     fea.stiffness_matrix_values =
         (fea.element_stiffness_matrix_values * fea.young_moduli.transpose())
-            .reshaped();
+        .reshaped();
 
     solve_equilibrium_system(fea);
 
-    const Eigen::MatrixXf displacement_matrix {
+    const Eigen::MatrixXf displacement_matrix{
         fea.displacements(fea.connectivity_matrix.reshaped())
-            .reshaped(fea.connectivity_matrix.rows(),
-                      fea.connectivity_matrix.cols())};
-    const Eigen::VectorXf compliance_derivative {
+           .reshaped(fea.connectivity_matrix.rows(),
+                     fea.connectivity_matrix.cols())};
+    const Eigen::VectorXf compliance_derivative{
         fea.stiffness_derivative.cwiseProduct(
             (displacement_matrix * fea.element_stiffness_matrix)
-                .cwiseProduct(displacement_matrix)
-                .rowwise()
-                .sum())};
-    const Eigen::VectorXf filtered_compliance_derivative {
+            .cwiseProduct(displacement_matrix)
+            .rowwise()
+            .sum())};
+    const Eigen::VectorXf filtered_compliance_derivative{
         filter(compliance_derivative
-                       .reshaped(fea.num_elements_y, fea.num_elements_x)
-                       .array() /
-                   fea.filter_weights,
+               .reshaped(fea.num_elements_y, fea.num_elements_x)
+               .array() /
+               fea.filter_weights,
                fea.filter_kernel)
-            .reshaped()};
-    const Eigen::VectorXf filtered_volume_derivative {
+        .reshaped()};
+    const Eigen::VectorXf filtered_volume_derivative{
         filter(fea.volume_derivative
-                       .reshaped(fea.num_elements_y, fea.num_elements_x)
-                       .array() /
-                   fea.filter_weights,
+                  .reshaped(fea.num_elements_y, fea.num_elements_x)
+                  .array() /
+               fea.filter_weights,
                fea.filter_kernel)
-            .reshaped()};
+        .reshaped()};
 
-    const Eigen::VectorXf active_design_variables {
+    const Eigen::VectorXf active_design_variables{
         fea.design_variables(fea.active_elements)};
-    const Eigen::VectorXf lower_bound {active_design_variables.array() -
-                                       fea.move};
-    const Eigen::VectorXf upper_bound {active_design_variables.array() +
-                                       fea.move};
-    const Eigen::VectorXf resizing_rule_constant {
+    const Eigen::VectorXf lower_bound{active_design_variables.array() -
+                                      fea.move};
+    const Eigen::VectorXf upper_bound{active_design_variables.array() +
+                                      fea.move};
+    const Eigen::VectorXf resizing_rule_constant{
         active_design_variables.array() *
         (-filtered_compliance_derivative(fea.active_elements).array() /
          filtered_volume_derivative(fea.active_elements).array())
-            .sqrt()
-            .real()};
+        .sqrt()
+        .real()};
     // Initial estimate for LM
-    float l1 {0.0f};
-    float l2 {resizing_rule_constant.mean() / fea.volume_fraction};
+    float l1{0.0f};
+    float l2{resizing_rule_constant.mean() / fea.volume_fraction};
     // OC resizing rule
     while ((l2 - l1) / (l2 + l1) > 1e-4f)
     {
         const auto l_middle = 0.5f * (l1 + l2);
         fea.design_variables(fea.active_elements) =
             (resizing_rule_constant / l_middle)
-                .cwiseMin(upper_bound)
-                .cwiseMin(1.0f)
-                .cwiseMax(lower_bound)
-                .cwiseMax(0.0f);
+            .cwiseMin(upper_bound)
+            .cwiseMin(1.0f)
+            .cwiseMax(lower_bound)
+            .cwiseMax(0.0f);
         if (fea.design_variables.mean() > fea.volume_fraction)
         {
             l1 = l_middle;
@@ -438,6 +439,4 @@ void fea_optimization_step(FEA_state &fea)
             l2 = l_middle;
         }
     }
-
-    PROFILE_END(fea_optimization_step);
 }

@@ -19,7 +19,7 @@ namespace
 void plot_matrix(
     const char *title_id,
     const Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-        &matrix)
+    &matrix)
 {
     const auto scale_min = static_cast<double>(matrix.minCoeff());
     const auto scale_max = static_cast<double>(matrix.maxCoeff());
@@ -42,28 +42,31 @@ void plot_matrix(
     }
     ImGui::SameLine();
     ImPlot::ColormapScale(
-        "##heat_scale", scale_min, scale_max, ImVec2(100, 400));
+        "##heat_scale",
+        scale_min,
+        scale_max,
+        ImVec2(100, 400));
     ImPlot::PopColormap();
 }
 
 void update_ui(
     FEA_state &fea,
     Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-        &displacements_x,
+    &displacements_x,
     Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-        &displacements_y,
+    &displacements_y,
     Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-        &densities,
+    &densities,
     const std::vector<Profile_entry> &profile_entries)
 {
     displacements_x = fea.displacements(Eigen::seq(0, Eigen::last, 2))
-                          .eval()
-                          .reshaped(fea.num_nodes_y, fea.num_nodes_x);
+                         .eval()
+                         .reshaped(fea.num_nodes_y, fea.num_nodes_x);
     displacements_y = fea.displacements(Eigen::seq(1, Eigen::last, 2))
-                          .eval()
-                          .reshaped(fea.num_nodes_y, fea.num_nodes_x);
+                         .eval()
+                         .reshaped(fea.num_nodes_y, fea.num_nodes_x);
     densities = fea.design_variables_physical.reshaped(fea.num_elements_y,
-                                                       fea.num_elements_x);
+        fea.num_elements_x);
 
     ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
 
@@ -73,20 +76,20 @@ void update_ui(
                     1000.0 / static_cast<double>(ImGui::GetIO().Framerate),
                     static_cast<double>(ImGui::GetIO().Framerate));
 
-        double parent_duration_ms {};
-        for (std::size_t i {0}; i < profile_entries.size(); ++i)
+        double parent_duration_ms{};
+        for (std::size_t i{0}; i < profile_entries.size(); ++i)
         {
             const auto &entry = profile_entries[i];
 
             std::ostringstream indent;
-            for (std::uint32_t level {0}; level < entry.level; ++level)
+            for (std::uint32_t level{0}; level < entry.level; ++level)
             {
                 indent << "|   ";
             }
 
             const auto duration_ms =
                 std::chrono::duration<double>(entry.t_end - entry.t_start)
-                    .count() *
+                .count() *
                 1000.0;
 
             double duration_percentage;
@@ -98,7 +101,7 @@ void update_ui(
             else
             {
                 duration_percentage =
-                    (duration_ms / parent_duration_ms) * 100.0;
+                    duration_ms / parent_duration_ms * 100.0;
             }
 
             ImGui::Text("%s%s: %.3f ms (%.2f%%)",
@@ -128,9 +131,10 @@ void update_ui(
 int application_main(FEA_state &fea)
 {
     glfwSetErrorCallback(
-        [](int error, const char *description) {
+        [](int error, const char *description)
+        {
             std::cerr << "GLFW error " << error << ": " << description
-                      << std::endl;
+                << std::endl;
         });
 
     if (!glfwInit())
@@ -165,9 +169,9 @@ int application_main(FEA_state &fea)
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
-    float y_scale {1.0f};
+    float y_scale{1.0f};
     glfwGetWindowContentScale(window, nullptr, &y_scale);
-    ImFontConfig font_config {};
+    ImFontConfig font_config{};
     font_config.SizePixels = 13.0f * y_scale;
     io.Fonts->AddFontDefault(&font_config);
 
@@ -204,18 +208,22 @@ int application_main(FEA_state &fea)
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        profile_begin_frame();
+        reset_profile_entries();
 
         fea_optimization_step(fea);
 
-        const auto &profile_entries = profile_end_frame();
+        const auto &profile_entries = get_profile_entries();
 
         update_ui(
-            fea, displacements_x, displacements_y, densities, profile_entries);
+            fea,
+            displacements_x,
+            displacements_y,
+            densities,
+            profile_entries);
 
         ImGui::Render();
-        int framebuffer_width {};
-        int framebuffer_height {};
+        int framebuffer_width{};
+        int framebuffer_height{};
         glfwGetFramebufferSize(window, &framebuffer_width, &framebuffer_height);
         glViewport(0, 0, framebuffer_width, framebuffer_height);
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);

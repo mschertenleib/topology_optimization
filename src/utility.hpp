@@ -1,20 +1,22 @@
 #ifndef UTILITY_HPP
 #define UTILITY_HPP
 
-#include <array>
 #include <chrono>
 #include <stdexcept>
 #include <utility>
+
 
 template <typename F>
 class Scope_exit
 {
 public:
-    explicit Scope_exit(F &&f) : m_f(std::move(f))
+    explicit Scope_exit(F &&f)
+        : m_f(std::move(f))
     {
     }
 
-    explicit Scope_exit(F &f) : m_f(f)
+    explicit Scope_exit(F &f)
+        : m_f(f)
     {
     }
 
@@ -37,12 +39,14 @@ class Scope_fail
 {
 public:
     explicit Scope_fail(F &&f)
-        : m_exception_count(std::uncaught_exceptions()), m_f(std::move(f))
+        : m_exception_count(std::uncaught_exceptions()),
+          m_f(std::move(f))
     {
     }
 
     explicit Scope_fail(F &f)
-        : m_exception_count(std::uncaught_exceptions()), m_f(f)
+        : m_exception_count(std::uncaught_exceptions()),
+          m_f(f)
     {
     }
 
@@ -72,22 +76,29 @@ private:
 
 struct Profile_entry
 {
-    const char *label {};
-    std::uint32_t level {};
-    std::chrono::steady_clock::time_point t_start {};
-    std::chrono::steady_clock::time_point t_end {};
+    const char *label{};
+    std::uint32_t level{};
+    std::chrono::steady_clock::time_point t_start{};
+    std::chrono::steady_clock::time_point t_end{};
 };
 
-void profile_begin_frame();
+class Scope_profiler
+{
+public:
+    explicit Scope_profiler(const char *label);
+    ~Scope_profiler() noexcept;
+    void stop() const noexcept;
 
-[[nodiscard]] std::size_t profile_begin(const char *label);
+    Scope_profiler(const Scope_profiler &) = delete;
+    Scope_profiler(Scope_profiler &&) = delete;
+    Scope_profiler &operator=(const Scope_profiler &) = delete;
+    Scope_profiler &operator=(Scope_profiler &&) = delete;
 
-void profile_end(std::size_t index);
+private:
+    std::size_t m_index;
+};
 
-[[nodiscard]] const std::vector<Profile_entry> &profile_end_frame();
-
-#define PROFILE_BEGIN(label)                                                   \
-    const auto CONCATENATE(profile_entry_, label) = profile_begin(#label)
-#define PROFILE_END(label) profile_end(CONCATENATE(profile_entry_, label))
+void reset_profile_entries();
+[[nodiscard]] const std::vector<Profile_entry> &get_profile_entries();
 
 #endif // UTILITY_HPP
