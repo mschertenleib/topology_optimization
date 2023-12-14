@@ -1,6 +1,8 @@
 #ifndef UTILITY_HPP
 #define UTILITY_HPP
 
+#include <Eigen/Core>
+
 #include <chrono>
 #include <stdexcept>
 #include <utility>
@@ -100,5 +102,9 @@ private:
 
 void reset_profile_entries();
 [[nodiscard]] const std::vector<Profile_entry> &get_profile_entries();
+
+[[nodiscard]] Eigen::ArrayXXf read_matrix_file(const char *file_name,
+                                               int rows,
+                                               int cols);
 
 #endif // UTILITY_HPP

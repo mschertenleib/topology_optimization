@@ -49,27 +49,8 @@ void plot_matrix(
     ImPlot::PopColormap();
 }
 
-void update_ui(
-    FEA_state &fea,
-    Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-    &displacements_x,
-    Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-    &displacements_y,
-    Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-    &densities,
-    const std::vector<Profile_entry> &profile_entries)
+void show_stats_window(const std::vector<Profile_entry> &profile_entries)
 {
-    displacements_x = fea.displacements(Eigen::seq(0, Eigen::last, 2))
-                         .eval()
-                         .reshaped(fea.num_nodes_y, fea.num_nodes_x);
-    displacements_y = fea.displacements(Eigen::seq(1, Eigen::last, 2))
-                         .eval()
-                         .reshaped(fea.num_nodes_y, fea.num_nodes_x);
-    densities = fea.design_variables_physical.reshaped(fea.num_elements_y,
-        fea.num_elements_x);
-
-    ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
-
     if (ImGui::Begin("Stats"))
     {
         ImGui::Text("%.3f ms/frame (%.1f fps)",
@@ -112,6 +93,30 @@ void update_ui(
         }
     }
     ImGui::End();
+}
+
+void update_ui(
+    FEA_state &fea,
+    Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
+    &displacements_x,
+    Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
+    &displacements_y,
+    Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
+    &densities,
+    const std::vector<Profile_entry> &profile_entries)
+{
+    ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
+
+    show_stats_window(profile_entries);
+
+    displacements_x = fea.displacements(Eigen::seq(0, Eigen::last, 2))
+                         .eval()
+                         .reshaped(fea.num_nodes_y, fea.num_nodes_x);
+    displacements_y = fea.displacements(Eigen::seq(1, Eigen::last, 2))
+                         .eval()
+                         .reshaped(fea.num_nodes_y, fea.num_nodes_x);
+    densities = fea.design_variables_physical.reshaped(fea.num_elements_y,
+        fea.num_elements_x);
 
     if (ImGui::Begin("Displacements"))
     {

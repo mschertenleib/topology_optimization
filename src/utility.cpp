@@ -1,5 +1,7 @@
 #include "utility.hpp"
 
+#include <fstream>
+#include <filesystem>
 
 namespace
 {
@@ -51,4 +53,43 @@ void reset_profile_entries()
 const std::vector<Profile_entry> &get_profile_entries()
 {
     return g_profile_entries;
+}
+
+Eigen::ArrayXXf read_matrix_file(const char *file_name,
+                                 int rows,
+                                 int cols)
+{
+    if (!std::filesystem::exists(file_name))
+    {
+        std::ostringstream oss;
+        oss << "File \"" << file_name << "\" does not exist\n";
+        throw std::runtime_error(oss.str());
+    }
+
+    const auto expected_size = static_cast<std::uintmax_t>(rows * cols) * sizeof
+                               (float);
+    const auto file_size = std::filesystem::file_size(file_name);
+    if (file_size != expected_size)
+    {
+        std::ostringstream oss;
+        oss << "Wrong file size for \"" << file_name << "\": expected " << rows
+            << "*" << cols << "*" << sizeof(float) << "=" << expected_size <<
+            ", got " << file_size << "\n";
+        throw std::runtime_error(oss.str());
+    }
+
+    std::ifstream file(file_name, std::ios::binary);
+    if (!file.is_open())
+    {
+        std::ostringstream oss;
+        oss << "Failed to open file \"" << file_name << "\"\n";
+        throw std::runtime_error(oss.str());
+    }
+
+    Eigen::ArrayXXf array;
+    array.resize(rows, cols);
+    file.read(reinterpret_cast<char *>(array.data()),
+              static_cast<std::streamsize>(file_size));
+
+    return array;
 }

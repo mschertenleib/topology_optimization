@@ -10,10 +10,10 @@ int main()
 {
     try
     {
-        constexpr float volume_fraction {0.3f};
-        constexpr float penalization {3.0f};
-        constexpr float radius_min {2.0f};
-        constexpr float move {0.2f};
+        constexpr float volume_fraction{0.3f};
+        constexpr float penalization{3.0f};
+        constexpr float radius_min{2.0f};
+        constexpr float move{0.2f};
 
         auto fea =
             fea_init(60, 30, volume_fraction, penalization, radius_min, move);
