@@ -28,7 +28,7 @@ find_package(OpenGL REQUIRED)
 
 CPMAddPackage(
         GITLAB_REPOSITORY libeigen/eigen
-        GIT_TAG 3.4.0
+        GIT_TAG fee5d60b
         DOWNLOAD_ONLY YES
 )
 

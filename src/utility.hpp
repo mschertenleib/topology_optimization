@@ -2,23 +2,22 @@
 #define UTILITY_HPP
 
 #include <Eigen/Core>
+#include <Eigen/SparseCore>
+#include <unsupported/Eigen/SparseExtra>
 
 #include <chrono>
 #include <stdexcept>
 #include <utility>
 
-
 template <typename F>
 class Scope_exit
 {
 public:
-    explicit Scope_exit(F &&f)
-        : m_f(std::move(f))
+    explicit Scope_exit(F &&f) : m_f(std::move(f))
     {
     }
 
-    explicit Scope_exit(F &f)
-        : m_f(f)
+    explicit Scope_exit(F &f) : m_f(f)
     {
     }
 
@@ -41,14 +40,12 @@ class Scope_fail
 {
 public:
     explicit Scope_fail(F &&f)
-        : m_exception_count(std::uncaught_exceptions()),
-          m_f(std::move(f))
+        : m_exception_count(std::uncaught_exceptions()), m_f(std::move(f))
     {
     }
 
     explicit Scope_fail(F &f)
-        : m_exception_count(std::uncaught_exceptions()),
-          m_f(f)
+        : m_exception_count(std::uncaught_exceptions()), m_f(f)
     {
     }
 
@@ -78,10 +75,10 @@ private:
 
 struct Profile_entry
 {
-    const char *label{};
-    std::uint32_t level{};
-    std::chrono::steady_clock::time_point t_start{};
-    std::chrono::steady_clock::time_point t_end{};
+    const char *label {};
+    std::uint32_t level {};
+    std::chrono::steady_clock::time_point t_start {};
+    std::chrono::steady_clock::time_point t_end {};
 };
 
 class Scope_profiler
@@ -103,8 +100,72 @@ private:
 void reset_profile_entries();
 [[nodiscard]] const std::vector<Profile_entry> &get_profile_entries();
 
-[[nodiscard]] Eigen::ArrayXXf read_matrix_file(const char *file_name,
-                                               int rows,
-                                               int cols);
+template <typename Matrix>
+void load_market(Matrix &mat, const char *file_name)
+{
+    int sym;
+    bool is_complex;
+    bool is_dense;
+    if (!Eigen::getMarketHeader(file_name, sym, is_complex, is_dense))
+    {
+        std::ostringstream oss;
+        oss << "Failed to open file \"" << file_name << '\"';
+        throw std::runtime_error(oss.str());
+    }
+
+    if (sym != 0 || is_complex)
+    {
+        std::ostringstream oss;
+        oss << "Unsupported matrix type for file \"" << file_name << '\"';
+        throw std::runtime_error(oss.str());
+    }
+
+    constexpr auto is_sparse_type = requires { Matrix::isCompressed; };
+    if (is_sparse_type == is_dense)
+    {
+        std::ostringstream oss;
+        if constexpr (is_sparse_type)
+        {
+            oss << "Reading \"" << file_name << "\" as sparse, but it is dense";
+        }
+        else
+        {
+            oss << "Reading \"" << file_name << "\" as dense, but it is sparse";
+        }
+        throw std::runtime_error(oss.str());
+    }
+
+    bool result;
+    if constexpr (is_sparse_type)
+    {
+        result = Eigen::loadMarket(mat, file_name);
+    }
+    else
+    {
+        result = Eigen::loadMarketDense(mat, file_name);
+    }
+    if (!result)
+    {
+        std::ostringstream oss;
+        oss << "Failed to parse file \"" << file_name << '\"';
+        throw std::runtime_error(oss.str());
+    }
+}
+
+template <typename T>
+[[nodiscard]] Eigen::SparseMatrix<T> load_market_sparse(const char *file_name)
+{
+    Eigen::SparseMatrix<T> mat;
+    load_market(mat, file_name);
+    return mat;
+}
+
+template <typename T>
+[[nodiscard]] Eigen::MatrixX<T> load_market_dense(const char *file_name)
+{
+    Eigen::MatrixX<T> mat;
+    load_market(mat, file_name);
+    return mat;
+}
 
 #endif // UTILITY_HPP
