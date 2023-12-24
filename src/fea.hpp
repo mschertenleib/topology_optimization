@@ -37,6 +37,7 @@ struct FEA_state
     Eigen::ArrayXf design_variables_filtered;
     Eigen::ArrayXf design_variables_physical;
     Eigen::ArrayXf design_variables_old;
+    Eigen::ArrayXf design_variables_indexed_temp;
     Eigen::MatrixXf displacement_matrix;
     Eigen::ArrayXf stiffness_derivative;
     Eigen::ArrayXf compliance_derivative;

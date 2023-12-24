@@ -82,6 +82,7 @@ filtered_index_vector(int size, const Eigen::VectorXi &discard)
                                      const Eigen::ArrayXXf &kernel)
 {
 #if 0
+
 // FIXME: this is broken and does not give the right result
 
     return (neighborhood(m, kernel.rows(), kernel.cols()) *
@@ -340,6 +341,7 @@ FEA_state fea_init(int num_elements_x,
     fea.design_variables_filtered.setZero(fea.num_elements);
     fea.design_variables_physical.setZero(fea.num_elements);
     fea.design_variables_old.setOnes(fea.num_elements);
+    fea.design_variables_indexed_temp.setZero(fea.active_elements.size());
 
     fea.displacement_matrix.setZero(fea.connectivity_matrix.rows(),
                                     fea.connectivity_matrix.cols());
@@ -364,14 +366,30 @@ void fea_optimization_step(FEA_state &fea)
 {
     Scope_profiler prof_optimization("Optimization step");
 
+    // TODO: design_variables could actually always have a 2D shape
     fea.design_variables_filtered =
         (filter(fea.design_variables.reshaped(fea.num_elements_y,
                                               fea.num_elements_x),
                 fea.filter_kernel) /
          fea.filter_weights)
             .reshaped();
-    fea.design_variables_physical(fea.active_elements) =
+
+    // FIXME: even this expression requires the allocation of a temporary array.
+    // I don't think there is anything we could do about it aside from making it
+    // an explicit for-loop. This is probably where Eigen shows its limits when
+    // an index array is necessary.
+    // Note that for the current system we have to filter out inactive elements
+    // because the mesh is always a rectangle (even when we explicitly disable
+    // parts of it). Since we want to ultimately support arbitrary geometry,
+    // this problem should go away (note that all the indexing used in here is
+    // with active_elements). The indexing that will still be necessary is when
+    // solving the equilibrium system, because we need to filter out fixed DOFs.
+    // So, for the time being, just accept that we will have to allocate here.
+    fea.design_variables_indexed_temp =
         fea.design_variables_filtered(fea.active_elements);
+    fea.design_variables_physical(fea.active_elements) =
+        fea.design_variables_indexed_temp;
+
     fea.design_variables_old = fea.design_variables_physical;
 
     fea.young_moduli = fea.young_modulus_min +
