@@ -331,20 +331,31 @@ FEA_state fea_init(int num_elements_x,
                fea.filter_kernel);
 
     fea.design_variables.setZero(fea.num_elements);
-    fea.design_variables_physical.setZero(fea.num_elements);
-    fea.design_variables_old.setOnes(fea.num_elements);
     fea.design_variables(fea.active_elements) =
         (volume_fraction *
              static_cast<float>(fea.num_elements - fea.passive_solid.size()) -
          static_cast<float>(fea.passive_solid.size())) /
         static_cast<float>(fea.active_elements.size());
     fea.design_variables(fea.passive_solid) = 1.0f;
+    fea.design_variables_filtered.setZero(fea.num_elements);
+    fea.design_variables_physical.setZero(fea.num_elements);
+    fea.design_variables_old.setOnes(fea.num_elements);
+
+    fea.displacement_matrix.setZero(fea.connectivity_matrix.rows(),
+                                    fea.connectivity_matrix.cols());
 
     fea.stiffness_derivative.setZero(fea.num_elements);
-
+    fea.compliance_derivative.setZero(fea.num_elements);
+    fea.filtered_compliance_derivative.setZero(fea.num_elements);
     fea.volume_derivative.setZero(fea.num_elements);
     fea.volume_derivative(fea.active_elements) =
         1.0f / static_cast<float>(fea.num_elements) / volume_fraction;
+    fea.filtered_volume_derivative.setZero(fea.num_elements);
+
+    fea.active_design_variables.setZero(fea.active_elements.size());
+    fea.lower_bound.setZero(fea.active_elements.size());
+    fea.upper_bound.setZero(fea.active_elements.size());
+    fea.resizing_rule_constant.setZero(fea.active_elements.size());
 
     return fea;
 }
@@ -353,14 +364,14 @@ void fea_optimization_step(FEA_state &fea)
 {
     Scope_profiler prof_optimization("Optimization step");
 
-    const Eigen::ArrayXf design_variables_filtered {
+    fea.design_variables_filtered =
         (filter(fea.design_variables.reshaped(fea.num_elements_y,
                                               fea.num_elements_x),
                 fea.filter_kernel) /
          fea.filter_weights)
-            .reshaped()};
+            .reshaped();
     fea.design_variables_physical(fea.active_elements) =
-        design_variables_filtered(fea.active_elements);
+        fea.design_variables_filtered(fea.active_elements);
     fea.design_variables_old = fea.design_variables_physical;
 
     fea.young_moduli = fea.young_modulus_min +
@@ -376,52 +387,52 @@ void fea_optimization_step(FEA_state &fea)
 
     solve_equilibrium_system(fea);
 
-    const Eigen::MatrixXf displacement_matrix {
+    fea.displacement_matrix =
         fea.displacements(fea.connectivity_matrix.reshaped())
             .reshaped(fea.connectivity_matrix.rows(),
-                      fea.connectivity_matrix.cols())};
-    const Eigen::ArrayXf compliance_derivative {
+                      fea.connectivity_matrix.cols());
+    fea.compliance_derivative =
         fea.stiffness_derivative *
-        (displacement_matrix * fea.element_stiffness_matrix)
-            .cwiseProduct(displacement_matrix)
+        (fea.displacement_matrix * fea.element_stiffness_matrix)
+            .cwiseProduct(fea.displacement_matrix)
             .array()
             .rowwise()
-            .sum()};
-    const Eigen::ArrayXf filtered_compliance_derivative {
-        filter(compliance_derivative.reshaped(fea.num_elements_y,
-                                              fea.num_elements_x) /
+            .sum();
+    fea.filtered_compliance_derivative =
+        filter(fea.compliance_derivative.reshaped(fea.num_elements_y,
+                                                  fea.num_elements_x) /
                    fea.filter_weights,
                fea.filter_kernel)
-            .reshaped()};
-    const Eigen::ArrayXf filtered_volume_derivative {
+            .reshaped();
+    fea.filtered_volume_derivative =
         filter(fea.volume_derivative.reshaped(fea.num_elements_y,
                                               fea.num_elements_x) /
                    fea.filter_weights,
                fea.filter_kernel)
-            .reshaped()};
+            .reshaped();
 
-    const Eigen::ArrayXf active_design_variables {
-        fea.design_variables(fea.active_elements)};
-    const Eigen::ArrayXf lower_bound {active_design_variables - fea.move};
-    const Eigen::ArrayXf upper_bound {active_design_variables + fea.move};
-    const Eigen::ArrayXf resizing_rule_constant {
-        active_design_variables *
-        (-filtered_compliance_derivative(fea.active_elements) /
-         filtered_volume_derivative(fea.active_elements))
+    fea.active_design_variables = fea.design_variables(fea.active_elements);
+
+    fea.lower_bound = fea.active_design_variables - fea.move;
+    fea.upper_bound = fea.active_design_variables + fea.move;
+    fea.resizing_rule_constant =
+        fea.active_design_variables *
+        (-fea.filtered_compliance_derivative(fea.active_elements) /
+         fea.filtered_volume_derivative(fea.active_elements))
             .sqrt()
-            .real()};
+            .real();
     // Initial estimate for LM
     float l1 {0.0f};
-    float l2 {resizing_rule_constant.mean() / fea.volume_fraction};
+    float l2 {fea.resizing_rule_constant.mean() / fea.volume_fraction};
     // OC resizing rule
     while ((l2 - l1) / (l2 + l1) > 1e-4f)
     {
         const auto l_middle = 0.5f * (l1 + l2);
         fea.design_variables(fea.active_elements) =
-            (resizing_rule_constant / l_middle)
-                .cwiseMin(upper_bound)
+            (fea.resizing_rule_constant / l_middle)
+                .cwiseMin(fea.upper_bound)
                 .cwiseMin(1.0f)
-                .cwiseMax(lower_bound)
+                .cwiseMax(fea.lower_bound)
                 .cwiseMax(0.0f);
         if (fea.design_variables.mean() > fea.volume_fraction)
         {

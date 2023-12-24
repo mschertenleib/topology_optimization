@@ -34,12 +34,21 @@ struct FEA_state
     Eigen::ArrayXi free_dofs;
     Eigen::ArrayXi all_to_free;
     Eigen::ArrayXf design_variables;
+    Eigen::ArrayXf design_variables_filtered;
     Eigen::ArrayXf design_variables_physical;
     Eigen::ArrayXf design_variables_old;
+    Eigen::MatrixXf displacement_matrix;
     Eigen::ArrayXf stiffness_derivative;
+    Eigen::ArrayXf compliance_derivative;
+    Eigen::ArrayXf filtered_compliance_derivative;
     Eigen::ArrayXf volume_derivative;
+    Eigen::ArrayXf filtered_volume_derivative;
+    Eigen::ArrayXf active_design_variables;
     Eigen::ArrayXXf filter_weights;
     Eigen::ArrayXXf filter_kernel;
+    Eigen::ArrayXf lower_bound;
+    Eigen::ArrayXf upper_bound;
+    Eigen::ArrayXf resizing_rule_constant;
 };
 
 [[nodiscard]] FEA_state fea_init(int num_elements_x,
