@@ -339,7 +339,7 @@ FEA_state fea_init(int num_elements_x,
         static_cast<float>(fea.active_elements.size());
     fea.design_variables(fea.passive_solid) = 1.0f;
     fea.design_variables_filtered.setZero(fea.num_elements);
-    fea.design_variables_physical.setZero(fea.num_elements);
+    fea.design_variables_physical = fea.design_variables;
     fea.design_variables_old.setOnes(fea.num_elements);
     fea.design_variables_indexed_temp.setZero(fea.active_elements.size());
 
@@ -437,8 +437,8 @@ void fea_optimization_step(FEA_state &fea)
         fea.active_design_variables *
         (-fea.filtered_compliance_derivative(fea.active_elements) /
          fea.filtered_volume_derivative(fea.active_elements))
-            .sqrt()
-            .real();
+            .cwiseMax(0.0f) // Drop negative coefficients for the sqrt
+            .sqrt();
     // Initial estimate for LM
     float l1 {0.0f};
     float l2 {fea.resizing_rule_constant.mean() / fea.volume_fraction};
