@@ -4,6 +4,7 @@
 #include <Eigen/SparseCholesky>
 #include <Eigen/SparseCore>
 
+#include <cassert>
 #include <iostream>
 #include <sstream>
 
@@ -24,10 +25,10 @@ to_string(Eigen::ComputationInfo computation_info) noexcept
 }
 
 // discard must be in ascending order and not contain duplicates
-[[nodiscard]] Eigen::VectorXi
-filtered_index_vector(int size, const Eigen::VectorXi &discard)
+[[nodiscard]] Eigen::ArrayXi filtered_index_array(int size,
+                                                  const Eigen::ArrayXi &discard)
 {
-    Eigen::VectorXi result(size - discard.size());
+    Eigen::ArrayXi result(size - discard.size());
     Eigen::Index index_result {0};
     Eigen::Index index_discard {0};
 
@@ -151,10 +152,17 @@ void solve_equilibrium_system(FEA_state &fea)
     stiffness_matrix.prune(0.0f);
 
     prof_assembly.stop();
-    Scope_profiler prof_decomposition("Stiffness matrix decomposition");
 
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<float>, Eigen::Lower> solver;
-    solver.compute(stiffness_matrix);
+    {
+        Scope_profiler prof_analyse_pattern("Pattern analysis");
+        solver.compute(stiffness_matrix);
+    }
+    {
+        Scope_profiler prof_factorize("Factorization");
+        solver.factorize(stiffness_matrix);
+    }
+
     if (const auto result = solver.info(); result != Eigen::Success)
     {
         std::ostringstream message;
@@ -162,11 +170,11 @@ void solve_equilibrium_system(FEA_state &fea)
         throw std::runtime_error(message.str());
     }
 
-    prof_decomposition.stop();
-    Scope_profiler prof_solve("Solving system");
-
     Eigen::VectorXf free_displacements(fea.free_dofs.size());
-    free_displacements = solver.solve(fea.forces);
+    {
+        Scope_profiler prof_solve("Solving system");
+        free_displacements = solver.solve(fea.forces);
+    }
     fea.displacements.setZero();
     fea.displacements(fea.free_dofs) = free_displacements;
 
@@ -185,7 +193,8 @@ FEA_state fea_init(int num_elements_x,
                    float volume_fraction,
                    float penalization,
                    float radius_min,
-                   float move)
+                   float move,
+                   Problem problem)
 {
     FEA_state fea {};
     fea.num_elements_x = num_elements_x;
@@ -204,8 +213,8 @@ FEA_state fea_init(int num_elements_x,
     fea.radius_min = radius_min;
     fea.move = move;
 
-    const Eigen::MatrixXi node_indices {
-        Eigen::VectorXi::LinSpaced(fea.num_nodes, 0, fea.num_nodes - 1)
+    const Eigen::ArrayXXi node_indices {
+        Eigen::ArrayXi::LinSpaced(fea.num_nodes, 0, fea.num_nodes - 1)
             .reshaped(fea.num_nodes_y, fea.num_nodes_x)};
 
     // Represents the index of the first DOF of each element
@@ -273,21 +282,70 @@ FEA_state fea_init(int num_elements_x,
 
     fea.young_moduli.setZero(fea.num_elements);
 
-    fea.passive_solid = {};
-    fea.passive_void = {};
-    Eigen::VectorXi passive_elements(fea.passive_solid.size() +
-                                     fea.passive_void.size());
-    passive_elements << fea.passive_solid, fea.passive_void;
-    fea.active_elements =
-        filtered_index_vector(fea.num_elements, passive_elements);
+    if (problem == Problem::MBB_beam)
+    {
+        fea.passive_solid = {};
+        fea.passive_void = {};
+        Eigen::ArrayXi passive_elements(fea.passive_solid.size() +
+                                        fea.passive_void.size());
+        passive_elements << fea.passive_solid, fea.passive_void;
+        fea.active_elements =
+            filtered_index_array(fea.num_elements, passive_elements);
 
-    Eigen::VectorXi fixed_dofs(fea.num_nodes_y + 1);
-    fixed_dofs << Eigen::VectorXi::LinSpaced(
-        fea.num_nodes_y, 0, fea.num_dofs_per_node * fea.num_nodes_y - 1),
-        fea.num_dofs_per_node * node_indices(Eigen::placeholders::last,
-                                             Eigen::placeholders::last) +
-            1;
-    fea.free_dofs = filtered_index_vector(fea.num_dofs, fixed_dofs);
+        Eigen::ArrayXi fixed_dofs(fea.num_nodes_y + 1);
+        fixed_dofs << Eigen::ArrayXi::LinSpaced(
+            fea.num_nodes_y, 0, fea.num_dofs_per_node * fea.num_nodes_y - 1),
+            fea.num_dofs_per_node * node_indices(Eigen::placeholders::last,
+                                                 Eigen::placeholders::last) +
+                1;
+
+        fea.free_dofs = filtered_index_array(fea.num_dofs, fixed_dofs);
+    }
+    else if (problem == Problem::arch)
+    {
+        const Eigen::ArrayXXi element_indices {
+            Eigen::ArrayXi::LinSpaced(fea.num_elements, 0, fea.num_elements - 1)
+                .reshaped(fea.num_elements_y, fea.num_elements_x)};
+
+        fea.passive_solid =
+            element_indices(0, Eigen::placeholders::all).reshaped();
+
+        const auto base_length = fea.num_elements_x / 5;
+        fea.passive_void =
+            element_indices(
+                Eigen::seq(fea.num_elements_y / 4, Eigen::placeholders::last),
+                Eigen::seq(base_length,
+                           Eigen::placeholders::last + 1 - base_length))
+                .reshaped();
+
+        Eigen::ArrayXi passive_elements(fea.passive_solid.size() +
+                                        fea.passive_void.size());
+        passive_elements << fea.passive_solid, fea.passive_void;
+        std::sort(passive_elements.begin(), passive_elements.end());
+        fea.active_elements =
+            filtered_index_array(fea.num_elements, passive_elements);
+
+        const auto bottom_fixed_nodes_left =
+            node_indices(Eigen::placeholders::last,
+                         Eigen::seq(0, base_length - 1))
+                .reshaped();
+        const auto bottom_fixed_nodes_right =
+            node_indices(Eigen::placeholders::last,
+                         Eigen::placeholders::lastN(base_length))
+                .reshaped();
+
+        Eigen::ArrayXi fixed_dofs(base_length * 4);
+        fixed_dofs << fea.num_dofs_per_node * bottom_fixed_nodes_left,
+            fea.num_dofs_per_node * bottom_fixed_nodes_left + 1,
+            fea.num_dofs_per_node * bottom_fixed_nodes_right,
+            fea.num_dofs_per_node * bottom_fixed_nodes_right + 1;
+        std::sort(fixed_dofs.begin(), fixed_dofs.end());
+        fea.free_dofs = filtered_index_array(fea.num_dofs, fixed_dofs);
+    }
+    else
+    {
+        assert(false);
+    }
 
     // Maps DOF indices to indices in the global stiffness matrix. The value -1
     // indicates that the corresponding DOF is fixed and hence not present in
@@ -310,8 +368,24 @@ FEA_state fea_init(int num_elements_x,
     }
 
     fea.forces.setZero(fea.free_dofs.size());
-    fea.forces(fea.all_to_free(fea.num_dofs_per_node * node_indices(0, 0) +
-                               1)) = -1.0f;
+    if (problem == Problem::MBB_beam)
+    {
+        fea.forces(fea.all_to_free(fea.num_dofs_per_node * node_indices(0, 0) +
+                                   1)) = -1.0f;
+    }
+    else if (problem == Problem::arch)
+    {
+        const Eigen::ArrayXi top_dofs {
+            fea.num_dofs_per_node *
+                node_indices(0, Eigen::placeholders::all).reshaped() +
+            1};
+        fea.forces(fea.all_to_free(top_dofs)).array() =
+            -1.0f / static_cast<float>(fea.num_elements_x);
+    }
+    else
+    {
+        assert(false);
+    }
 
     fea.displacements.setZero(fea.num_dofs);
 

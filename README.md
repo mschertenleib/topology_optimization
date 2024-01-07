@@ -3,6 +3,14 @@
 This project implements from scratch stress-strain finite element analysis and
 topology optimization.
 
+MBB beam:
+
+![](densities_MBB_beam.png)
+
+Support for a distributed load at the top and a clear center:
+
+![](densities_arch.png)
+
 ## Build
 
 All dependencies are handled
@@ -23,6 +31,12 @@ cmake --build build --target topology_optimization
 - [Implot](https://github.com/epezent/implot)
 
 ## Notes
+
+- Performance-wise, we are limited by the capabilities of Eigen's sparse
+  solvers (solving the FEA problem takes 90% to 97% of the computation
+  time). We also seem to get numerical issues with most iterative solvers, so
+  there might be something to do on that side. We should probably look into
+  interfacing with third-party libraries from Eigen.
 
 - `EIGEN_NO_AUTOMATIC_RESIZING` apparently breaks some operations. For example,
   when a default-constructed dense `dst` is assigned a sparse `src`, the

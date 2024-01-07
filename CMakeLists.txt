@@ -56,7 +56,7 @@ CPMAddPackage(
 set(is_gnu_or_clang "$<CXX_COMPILER_ID:GNU,Clang,AppleClang>")
 add_compile_options(
         $<${is_gnu_or_clang}:-march=native>
-        #$<${is_gnu_or_clang}:-ffast-math>
+        $<${is_gnu_or_clang}:-ffast-math>
 )
 add_compile_definitions(
         #EIGEN_NO_AUTOMATIC_RESIZING

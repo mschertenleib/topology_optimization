@@ -52,12 +52,19 @@ struct FEA_state
     Eigen::ArrayXf resizing_rule_constant;
 };
 
+enum struct Problem
+{
+    MBB_beam,
+    arch
+};
+
 [[nodiscard]] FEA_state fea_init(int num_elements_x,
                                  int num_elements_y,
                                  float volume_fraction,
                                  float penalization,
                                  float radius_min,
-                                 float move);
+                                 float move,
+                                 Problem problem);
 
 void fea_optimization_step(FEA_state &fea);
 
