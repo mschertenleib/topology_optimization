@@ -1,64 +1,6 @@
-# topology_optimization
+# Topology Optimization
 
-This project implements from scratch stress-strain finite element analysis and
-topology optimization.
-
-MBB beam:
-
-![](densities_MBB_beam.png)
-
-Support for a distributed load at the top and a clear center:
-
-![](densities_arch.png)
-
-## Build
-
-All dependencies are handled
-by [CPM.cmake](https://github.com/cpm-cmake/CPM.cmake).
-
-```
-git clone https://github.com/mschertenleib/topology_optimization.git
-cd topology_optimization
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --target topology_optimization
-```
-
-## Dependencies
-
-- [Eigen](https://gitlab.com/libeigen/eigen)
-- [GLFW](https://github.com/glfw/glfw)
-- [Dear ImGui](https://github.com/ocornut/imgui)
-- [Implot](https://github.com/epezent/implot)
-
-## Notes
-
-- Performance-wise, we are limited by the capabilities of Eigen's sparse
-  solvers (solving the FEA problem takes 90% to 97% of the computation
-  time). We also seem to get numerical issues with most iterative solvers, so
-  there might be something to do on that side. We should probably look into
-  interfacing with third-party libraries from Eigen.
-
-- `EIGEN_NO_AUTOMATIC_RESIZING` apparently breaks some operations. For example,
-  when a default-constructed dense `dst` is assigned a sparse `src`, the
-  fundamental operations executed are:
-  ```
-  dst._resize_to_match(src);
-  dst.setZero();
-  resize_if_allowed(dst, src);
-  for each coeff in non-zeros of src:
-      dst(coeff.index) = coeff.value;
-  ```
-  If `EIGEN_NO_AUTOMATIC_RESIZING` is defined, `dst._resize_to_match(src)` is a
-  no-op **even if `dst` has size 0**, and the call to `setZero()` does nothing
-  (because `dst` still has size 0). Then `resize_if_allowed(dst, src)` actually
-  resizes `dst` to the size of `src`, and leaves its coefficients uninitialized.
-  Therefore only the coefficients corresponding to non-zeros of `src` are
-  assigned to, while the others keep their uninitialized value (NaN
-  if `EIGEN_INITIALIZE_MATRICES_BY_NAN` is defined).
-
-  If `EIGEN_NO_AUTOMATIC_RESIZING` is not defined, the resizing of `dst` happens
-  in `dst._resize_to_match(src)`, **before** the `setZero()`, and everything
-  works as expected.
+This project explores topology optimization. It is written in Python using the [NGSolve](https://ngsolve.org/) library.
 
 ## References
 
