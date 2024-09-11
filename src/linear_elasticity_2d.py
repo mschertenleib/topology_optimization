@@ -27,7 +27,7 @@ def main() -> None:
         return 2.0 * mu * strain + lam * Trace(strain) * Id(2)
 
     def strain(u):
-        return Sym(Grad(u))  # NOTE: Sym(A) = 0.5 * (A + A^T)
+        return Sym(Grad(u))
 
     fes = VectorH1(mesh, order=2, dirichlet="left")
     u = fes.TrialFunction()

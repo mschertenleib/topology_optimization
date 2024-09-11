@@ -2,6 +2,36 @@
 
 This project explores topology optimization. It is written in Python using the [NGSolve](https://ngsolve.org/) library.
 
+## Linear elasticity
+
+Displacement:
+
+$$ u : \Omega \rightarrow \mathbb{R}^3 $$
+
+Stress (Hooke's law):
+
+$$ \sigma = 2 \mu \varepsilon + \lambda tr(\varepsilon) I $$
+
+Strain:
+
+$$ \varepsilon(u) = \frac{1}{2}(\nabla u + (\nabla u)^T) $$
+
+Static equilibrium:
+
+$$ div(\sigma) = f $$
+
+Displacement boundary condition:
+
+$$ u = u_D \qquad \text{on } \Gamma_D $$
+
+Traction boundary condition:
+
+$$ \sigma n = g \qquad \text{on } \Gamma_N $$
+
+From the above equations, we can formulate the weak form:
+
+$$ \int_\Omega \sigma(\varepsilon(u)) : \varepsilon(v) dx = \int_\Omega f v dx + \int_{\Gamma_N} g v ds $$
+
 ## References
 
 - F. Ferrari and O. Sigmund, "A new generation 99 line Matlab code for
