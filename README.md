@@ -16,7 +16,7 @@ Strain:
 
 $$ \varepsilon(u) = \frac{1}{2}(\nabla u + (\nabla u)^T) $$
 
-Static equilibrium (note that since $\sigma$ is a stress, $f$ has units N/m^3):
+Static equilibrium:
 
 $$ div(\sigma) = f $$
 

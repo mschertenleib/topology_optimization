@@ -47,7 +47,7 @@ def main() -> None:
     a = BilinearForm(InnerProduct(stress(strain(u)), strain(v)) * dx)
     a.Assemble()
 
-    f = LinearForm(CoefficientFunction((0, force, 0)) * v * ds("force"))
+    f = LinearForm(CoefficientFunction((0, force / (width * height), 0)) * v * ds("force"))
     f.Assemble()
 
     inv = a.mat.Inverse(freedofs=fes.FreeDofs(), inverse="sparsecholesky")
