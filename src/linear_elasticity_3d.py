@@ -58,13 +58,13 @@ def main() -> None:
     Draw(gfu, filename="out.html")
     # webbrowser.open("file://" + os.path.abspath("out.html"))
 
-    deflection = analytical_beam_deflection(width=width, height=height, length=length, E=E, force=force)
-    print(f"Analytical deflection: {deflection:.9f} m")
+    analytical_deflection = analytical_beam_deflection(width=width, height=height, length=length, E=E, force=force)
+    print(f"Analytical Y deflection: {analytical_deflection:.9f} m")
 
     coords = np.asarray([node.point for node in mesh.vertices])
     disp = gfu(mesh(x=coords[:, 0], y=coords[:, 1], z=coords[:, 2]))
-    print(coords)
-    print(disp)
+    numerical_deflection = np.mean(disp[coords[:, 0] == length, 1])
+    print(f"Numerical Y deflection:  {numerical_deflection:.9f} m")
 
 
 if __name__ == "__main__":
