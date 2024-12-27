@@ -14,6 +14,14 @@ def analytical_beam_deflection(width: float, height: float, length: float, E: fl
     return force * length**3 / (3.0 * E * I_z)
 
 
+def stress(strain, mu, lam):
+    return 2.0 * mu * strain + lam * Trace(strain) * Id(3)
+
+
+def strain(displacement):
+    return Sym(Grad(displacement))
+
+
 def main() -> None:
     length = 0.2
     height = 0.02
@@ -33,18 +41,12 @@ def main() -> None:
     lam = E * nu / ((1.0 + nu) * (1.0 - 2.0 * nu))
     mu = E / (2.0 * (1.0 + nu))
 
-    def stress(strain):
-        return 2.0 * mu * strain + lam * Trace(strain) * Id(3)
-
-    def strain(displacement):
-        return Sym(Grad(displacement))
-
     fes = VectorH1(mesh, order=2, dirichlet="fix")
     u = fes.TrialFunction()
     v = fes.TestFunction()
     gfu = GridFunction(fes)
 
-    a = BilinearForm(InnerProduct(stress(strain(u)), strain(v)) * dx)
+    a = BilinearForm(InnerProduct(stress(strain(u), mu=mu, lam=lam), strain(v)) * dx)
     a.Assemble()
 
     f = LinearForm(CoefficientFunction((0, force / (width * height), 0)) * v * ds("force"))
@@ -54,10 +56,15 @@ def main() -> None:
     gfu.vec.data = inv * f.vec
 
     Draw(gfu, filename="out.html")
-    webbrowser.open("file://" + os.path.abspath("out.html"))
+    # webbrowser.open("file://" + os.path.abspath("out.html"))
 
     deflection = analytical_beam_deflection(width=width, height=height, length=length, E=E, force=force)
-    print(f"Analytical deflection: {deflection} m")
+    print(f"Analytical deflection: {deflection:.9f} m")
+
+    coords = np.asarray([node.point for node in mesh.vertices])
+    disp = gfu(mesh(x=coords[:, 0], y=coords[:, 1], z=coords[:, 2]))
+    print(coords)
+    print(disp)
 
 
 if __name__ == "__main__":
