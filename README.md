@@ -1,6 +1,6 @@
 # Topology Optimization
 
-This project explores topology optimization. It is written in Python using the [NGSolve](https://ngsolve.org/) library.
+This project explores topology optimization. It is written in Python using the [Netgen/NGSolve](https://ngsolve.org/) library.
 
 ## Linear elasticity
 

@@ -1,12 +1,10 @@
 import os.path
 import webbrowser
 
-from ngsolve import *
-from netgen.occ import *
-from ngsolve.webgui import Draw
-
-import matplotlib.pyplot as plt
 import numpy as np
+from netgen.occ import *
+from ngsolve import *
+from ngsolve.webgui import Draw
 
 
 def analytical_beam_deflection(width: float, height: float, length: float, E: float, force: float):
@@ -56,9 +54,11 @@ def main() -> None:
     gfu.vec.data = inv * f.vec
 
     Draw(gfu, filename="out.html")
-    # webbrowser.open("file://" + os.path.abspath("out.html"))
+    webbrowser.open("file://" + os.path.abspath("out.html"))
 
-    analytical_deflection = analytical_beam_deflection(width=width, height=height, length=length, E=E, force=force)
+    analytical_deflection = analytical_beam_deflection(
+        width=width, height=height, length=length, E=E, force=force
+    )
     print(f"Analytical Y deflection: {analytical_deflection:.9f} m")
 
     coords = np.asarray([node.point for node in mesh.vertices])
