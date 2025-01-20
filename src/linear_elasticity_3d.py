@@ -66,6 +66,9 @@ def main() -> None:
     numerical_deflection = np.mean(disp[coords[:, 0] == length, 1])
     print(f"Numerical Y deflection:  {numerical_deflection:.9f} m")
 
+    total_force = Integrate(CoefficientFunction(force / (width * height)) * ds("force"), mesh)
+    print(f"Total integrated force: {total_force:.3f} N")
+
 
 if __name__ == "__main__":
     main()

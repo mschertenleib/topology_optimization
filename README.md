@@ -67,6 +67,9 @@ $$ \int_\Omega \sigma(\varepsilon(u)) : \varepsilon(v) dx = \int_\Omega f v dx +
   _Structural and Multidisciplinary Optimization_, vol. 62, pp. 685-707, 2020,
   doi: https://doi.org/10.1007/s00158-020-02527-1.
 
+- J. M. Gere and B. J. Goodno, _Mechanics of Materials_, 8th SI ed.,
+  Cengage Learning, 2012.
+
 ## License
 
 This project is released under [MIT License](LICENSE).
