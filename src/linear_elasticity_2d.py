@@ -30,15 +30,15 @@ def main() -> None:
     nu = 0.35  # Poisson's ratio
 
     geo = SplineGeometry()
-
-    p1, p2, p3, p4 = [
-        geo.AppendPoint(x, y) for x, y in [(0, 0), (length, 0), (length, height), (0, height)]
-    ]
+    p1 = geo.AppendPoint(0, 0)
+    p2 = geo.AppendPoint(length, 0)
+    p3 = geo.AppendPoint(length, height)
+    p4 = geo.AppendPoint(0, height)
     geo.Append(["line", p1, p2])
     geo.Append(["line", p2, p3], bc="force")
     geo.Append(["line", p3, p4])
     geo.Append(["line", p4, p1], bc="fix")
-    mesh = Mesh(geo.GenerateMesh(maxh=height / 15.0))
+    mesh = Mesh(geo.GenerateMesh(maxh=height / 5.0))
 
     # Lamé parameters
     lam = E * nu / ((1.0 + nu) * (1.0 - 2.0 * nu))
@@ -72,7 +72,7 @@ def main() -> None:
     print(f"Numerical Y deflection:  {numerical_deflection:.9f} m")
 
     total_force = Integrate(CoefficientFunction(force / (width * height)) * ds("force"), mesh)
-    print(f"Total applied force: {total_force}")
+    print(f"Total integrated force: {total_force:.3f} N")
 
 
 if __name__ == "__main__":
