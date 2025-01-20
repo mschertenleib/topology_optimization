@@ -13,7 +13,7 @@ def analytical_beam_deflection(width: float, height: float, length: float, E: fl
 
 
 def stress(strain, mu, lam):
-    return 2.0 * mu * strain + lam * Trace(strain) * Id(3)
+    return 2.0 * mu * strain + lam * Trace(strain) * Id(strain.shape[0])
 
 
 def strain(displacement):
@@ -21,9 +21,10 @@ def strain(displacement):
 
 
 def main() -> None:
+    # NOTE: All values in standard units: m, N, Pa
     length = 0.2
     height = 0.02
-    width = 0.02
+    width = 0.03
     force = -100.0
     E = 70e9  # Young's modulus
     nu = 0.35  # Poisson's ratio
@@ -31,7 +32,6 @@ def main() -> None:
     beam = Box(Pnt(0, 0, 0), Pnt(length, height, width))
     beam.faces.Min(X).name = "fix"
     beam.faces.Max(X).name = "force"
-
     geo = OCCGeometry(beam)
     mesh = Mesh(geo.GenerateMesh(maxh=height / 5.0))
 
