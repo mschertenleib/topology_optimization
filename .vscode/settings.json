@@ -12,11 +12,17 @@
     ],
     "flake8.args": [
         "--max-line-length=100",
-        "--ignore=F403,F405"
+        "--ignore=E203,F403,F405"
+    ],
+    "isort.args": [
+        "--profile=black"
     ],
     "[python]": {
         "editor.tabSize": 4,
         "editor.defaultFormatter": "ms-python.black-formatter",
         "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+        },
     }
 }

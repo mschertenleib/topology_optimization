@@ -1,10 +1,64 @@
 import os.path
 import webbrowser
 
-import numpy as np
 from netgen.geom2d import SplineGeometry
+from netgen.meshing import Element1D, Element2D, FaceDescriptor
+from netgen.meshing import Mesh as ngMesh
+from netgen.meshing import MeshPoint, Pnt
 from ngsolve import *
 from ngsolve.webgui import Draw
+
+
+def create_quad_mesh(size_x: float, size_y: float, nx: int, ny: int) -> ngMesh:
+    mesh = ngMesh(dim=2)
+
+    # Grid points
+    point_ids = []
+    for iy in range(ny + 1):
+        for ix in range(nx + 1):
+            x = ix / nx * size_x
+            y = iy / ny * size_y
+            point_ids.append(mesh.Add(MeshPoint(Pnt(x, y, 0))))
+
+    # Region
+    region = mesh.AddRegion("rectangle", dim=2)
+
+    # Quad elements
+    for iy in range(ny):
+        for ix in range(nx):
+            mesh.Add(
+                Element2D(
+                    region,
+                    [
+                        point_ids[iy * (nx + 1) + ix],
+                        point_ids[iy * (nx + 1) + ix + 1],
+                        point_ids[(iy + 1) * (nx + 1) + ix + 1],
+                        point_ids[(iy + 1) * (nx + 1) + ix],
+                    ],
+                )
+            )
+
+    # Left boundary condition (fixed)
+    fd_fix = mesh.Add(FaceDescriptor(surfnr=1, domin=region, bc=1))
+    mesh.SetBCName(1, "fix")
+    for iy in range(ny):
+        mesh.Add(
+            Element1D([point_ids[iy * (nx + 1)], point_ids[(iy + 1) * (nx + 1)]], index=fd_fix)
+        )
+
+    # Right boundary condition (force)
+    fd_force = mesh.Add(FaceDescriptor(surfnr=2, domin=region, bc=2))
+    mesh.SetBCName(2, "force")
+    for iy in range(ny):
+        mesh.Add(
+            Element1D(
+                [point_ids[iy * (nx + 1) + nx], point_ids[(iy + 1) * (nx + 1) + nx]], index=fd_force
+            )
+        )
+
+    mesh.Compress()
+
+    return mesh
 
 
 def analytical_beam_deflection(width: float, height: float, length: float, E: float, force: float):
@@ -29,16 +83,23 @@ def main() -> None:
     E = 70e9  # Young's modulus
     nu = 0.35  # Poisson's ratio
 
-    geo = SplineGeometry()
-    p1 = geo.AppendPoint(0, 0)
-    p2 = geo.AppendPoint(length, 0)
-    p3 = geo.AppendPoint(length, height)
-    p4 = geo.AppendPoint(0, height)
-    geo.Append(["line", p1, p2])
-    geo.Append(["line", p2, p3], bc="force")
-    geo.Append(["line", p3, p4])
-    geo.Append(["line", p4, p1], bc="fix")
-    mesh = Mesh(geo.GenerateMesh(maxh=height / 5.0))
+    use_quad_mesh = True
+
+    if use_quad_mesh:
+        ny = 5
+        nx = int(length / height * ny)
+        mesh = Mesh(create_quad_mesh(size_x=length, size_y=height, nx=nx, ny=ny))
+    else:
+        geo = SplineGeometry()
+        p1 = geo.AppendPoint(0, 0)
+        p2 = geo.AppendPoint(length, 0)
+        p3 = geo.AppendPoint(length, height)
+        p4 = geo.AppendPoint(0, height)
+        geo.Append(["line", p1, p2])
+        geo.Append(["line", p2, p3], bc="force")
+        geo.Append(["line", p3, p4])
+        geo.Append(["line", p4, p1], bc="fix")
+        mesh = Mesh(geo.GenerateMesh(maxh=height / 5.0))
 
     # Lamé parameters
     lam = E * nu / (1.0 - nu**2)  # plane-stress
