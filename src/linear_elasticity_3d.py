@@ -44,7 +44,7 @@ def main() -> None:
     v = fes.TestFunction()
     gfu = GridFunction(fes)
 
-    a = BilinearForm(InnerProduct(stress(strain(u), mu=mu, lam=lam), strain(v)) * dx)
+    a = BilinearForm(InnerProduct(stress(strain(u), mu, lam), strain(v)) * dx)
     a.Assemble()
 
     f = LinearForm(CoefficientFunction((0, force / (width * height), 0)) * v * ds("force"))
@@ -53,18 +53,20 @@ def main() -> None:
     inv = a.mat.Inverse(freedofs=fes.FreeDofs(), inverse="sparsecholesky")
     gfu.vec.data = inv * f.vec
 
-    Draw(gfu, filename="out.html")
-    webbrowser.open("file://" + os.path.abspath("out.html"))
+    # Draw(gfu, filename="out.html")
+    # webbrowser.open("file://" + os.path.abspath("out.html"))
 
     analytical_deflection = analytical_beam_deflection(
         width=width, height=height, length=length, E=E, force=force
     )
     print(f"Analytical Y deflection: {analytical_deflection:.9f} m")
 
-    coords = np.asarray([node.point for node in mesh.vertices])
-    disp = gfu(mesh(x=coords[:, 0], y=coords[:, 1], z=coords[:, 2]))
-    numerical_deflection = np.mean(disp[coords[:, 0] == length, 1])
-    print(f"Numerical Y deflection:  {numerical_deflection:.9f} m")
+    point = mesh(length, height / 2, width / 2, BND)
+    numerical_deflection = gfu(point)[1]
+    print(
+        f"Numerical Y deflection:  {numerical_deflection:.9f} m"
+        f" ({(numerical_deflection - analytical_deflection) / analytical_deflection * 100.0:+.2f}%)"
+    )
 
     total_force = Integrate(CoefficientFunction(force / (width * height)) * ds("force"), mesh)
     print(f"Total integrated force: {total_force:.3f} N")

@@ -7,8 +7,8 @@ from ngsolve import *
 from ngsolve.webgui import Draw
 
 
-def analytical_beam_deflection(height: float, length: float, E: float, force: float):
-    I_z = height**3 / 12.0
+def analytical_beam_deflection(width: float, height: float, length: float, E: float, force: float):
+    I_z = width * height**3 / 12.0
     return force * length**3 / (3.0 * E * I_z)
 
 
@@ -41,7 +41,7 @@ def main() -> None:
     mesh = Mesh(geo.GenerateMesh(maxh=height / 5.0))
 
     # Lamé parameters
-    lam = E * nu / ((1.0 + nu) * (1.0 - 2.0 * nu))
+    lam = E * nu / (1.0 - nu**2)  # plane-stress
     mu = E / (2.0 * (1.0 + nu))
 
     fes = VectorH1(mesh, order=2, dirichlet="fix")
@@ -49,7 +49,7 @@ def main() -> None:
     v = fes.TestFunction()
     gfu = GridFunction(fes)
 
-    a = BilinearForm(InnerProduct(stress(strain(u), mu=mu, lam=lam), strain(v)) * dx)
+    a = BilinearForm(InnerProduct(stress(strain(u), mu, lam), strain(v)) * dx)
     a.Assemble()
 
     f = LinearForm(CoefficientFunction((0, force / (width * height))) * v * ds("force"))
@@ -58,20 +58,24 @@ def main() -> None:
     inv = a.mat.Inverse(freedofs=fes.FreeDofs(), inverse="sparsecholesky")
     gfu.vec.data = inv * f.vec
 
-    Draw(gfu, filename="out.html")
-    webbrowser.open("file://" + os.path.abspath("out.html"))
+    # Draw(gfu, filename="out.html")
+    # webbrowser.open("file://" + os.path.abspath("out.html"))
 
     analytical_deflection = analytical_beam_deflection(
-        height=height, length=length, E=E, force=force / width
+        width=width, height=height, length=length, E=E, force=force
     )
     print(f"Analytical Y deflection: {analytical_deflection:.9f} m")
 
-    coords = np.asarray([node.point for node in mesh.vertices])
-    disp = gfu(mesh(x=coords[:, 0], y=coords[:, 1]))
-    numerical_deflection = np.mean(disp[coords[:, 0] == length, 1])
-    print(f"Numerical Y deflection:  {numerical_deflection:.9f} m")
+    point = mesh(length, height / 2, VOL_or_BND=BND)
+    numerical_deflection = gfu(point)[1]
+    print(
+        f"Numerical Y deflection:  {numerical_deflection:.9f} m"
+        f" ({(numerical_deflection - analytical_deflection) / analytical_deflection * 100.0:+.2f}%)"
+    )
 
-    total_force = Integrate(CoefficientFunction(force / (width * height)) * ds("force"), mesh)
+    total_force = (
+        Integrate(CoefficientFunction(force / (width * height)) * ds("force"), mesh) * width
+    )
     print(f"Total integrated force: {total_force:.3f} N")
 
 
