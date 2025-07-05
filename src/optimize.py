@@ -38,18 +38,15 @@ def quad_mesh(size_x: float, size_y: float, nx: int, ny: int) -> ngMesh:
                 )
             )
 
-    # Left boundary condition (fixed)
+    # Boundary conditions
     fd_fix = mesh.Add(FaceDescriptor(surfnr=1, domin=region, bc=1))
+    fd_force = mesh.Add(FaceDescriptor(surfnr=2, domin=region, bc=2))
     mesh.SetBCName(1, "fix")
+    mesh.SetBCName(2, "force")
     for iy in range(ny):
         mesh.Add(
             Element1D([point_ids[iy * (nx + 1)], point_ids[(iy + 1) * (nx + 1)]], index=fd_fix)
         )
-
-    # Right boundary condition (force)
-    fd_force = mesh.Add(FaceDescriptor(surfnr=2, domin=region, bc=2))
-    mesh.SetBCName(2, "force")
-    for iy in range(ny):
         mesh.Add(
             Element1D(
                 [point_ids[iy * (nx + 1) + nx], point_ids[(iy + 1) * (nx + 1) + nx]], index=fd_force
@@ -61,9 +58,10 @@ def quad_mesh(size_x: float, size_y: float, nx: int, ny: int) -> ngMesh:
     return mesh
 
 
-def analytical_beam_deflection(width: float, height: float, length: float, E: float, force: float):
-    I_z = width * height**3 / 12.0
-    return force * length**3 / (3.0 * E * I_z)
+def lame_parameters(E: float, nu: float) -> tuple[float, float]:
+    lam = E * nu / (1.0 - nu**2)  # plane-stress
+    mu = E / (2.0 * (1.0 + nu))
+    return lam, mu
 
 
 def stress(strain, mu, lam):
@@ -96,11 +94,9 @@ def main() -> None:
         geo = OCCGeometry(beam, dim=2)
         mesh = Mesh(geo.GenerateMesh(maxh=height / 5.0))
 
-    # Lamé parameters
-    lam = E * nu / (1.0 - nu**2)  # plane-stress
-    mu = E / (2.0 * (1.0 + nu))
+    lam, mu = lame_parameters(E, nu)
 
-    fes = VectorH1(mesh, order=2, dirichlet="fix")
+    fes = VectorH1(mesh, order=1, dirichlet="fix")
     u = fes.TrialFunction()
     v = fes.TestFunction()
     gfu = GridFunction(fes)
@@ -114,25 +110,12 @@ def main() -> None:
     inv = a.mat.Inverse(freedofs=fes.FreeDofs(), inverse="sparsecholesky")
     gfu.vec.data = inv * f.vec
 
-    # Draw(gfu, filename="out.html")
-    # webbrowser.open("file://" + os.path.abspath("out.html"))
-
-    analytical_deflection = analytical_beam_deflection(
-        width=width, height=height, length=length, E=E, force=force
-    )
-    print(f"Analytical Y deflection: {analytical_deflection:.9f} m")
+    Draw(gfu, filename="out.html")
+    webbrowser.open("file://" + os.path.abspath("out.html"))
 
     point = mesh(length, height / 2, VOL_or_BND=BND)
     numerical_deflection = gfu(point)[1]
-    print(
-        f"Numerical Y deflection:  {numerical_deflection:.9f} m"
-        f" ({(numerical_deflection - analytical_deflection) / analytical_deflection * 100.0:+.2f}%)"
-    )
-
-    total_force = (
-        Integrate(CoefficientFunction(force / (width * height)) * ds("force"), mesh) * width
-    )
-    print(f"Total integrated force: {total_force:.3f} N")
+    print(f"Numerical Y deflection:  {numerical_deflection:.9f} m")
 
 
 if __name__ == "__main__":
