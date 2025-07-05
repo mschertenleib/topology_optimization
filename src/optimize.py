@@ -81,7 +81,7 @@ def main() -> None:
     E = 70e9  # Young's modulus
     nu = 0.35  # Poisson's ratio
 
-    use_quad_mesh = True
+    use_quad_mesh = False
 
     if use_quad_mesh:
         ny = 5
@@ -96,12 +96,14 @@ def main() -> None:
 
     lam, mu = lame_parameters(E, nu)
 
-    fes = VectorH1(mesh, order=1, dirichlet="fix")
+    fes = VectorH1(mesh, order=2, dirichlet="fix")
     u = fes.TrialFunction()
     v = fes.TestFunction()
     gfu = GridFunction(fes)
 
-    a = BilinearForm(InnerProduct(stress(strain(u), mu, lam), strain(v)) * dx)
+    Ef = 0.6 + 0.4 * cos(x * 2 * pi / length)
+
+    a = BilinearForm(Ef * InnerProduct(stress(strain(u), mu, lam), strain(v)) * dx)
     a.Assemble()
 
     f = LinearForm(CoefficientFunction((0, force / (width * height))) * v * ds("force"))
@@ -110,7 +112,13 @@ def main() -> None:
     inv = a.mat.Inverse(freedofs=fes.FreeDofs(), inverse="sparsecholesky")
     gfu.vec.data = inv * f.vec
 
-    Draw(gfu, filename="out.html")
+    eps_cf = strain(gfu)
+    # von Mises (a.k.a. J2) equivalent strain
+    eps_dev = eps_cf - Trace(eps_cf) / 2 * Id(2)
+    eq_strain = sqrt(2 / 3 * InnerProduct(eps_dev, eps_dev))
+
+    Draw(eq_strain, mesh, filename="out.html", settings={"Colormap": {"ncolors": 32}})
+    # Draw(gfu, filename="out.html", settings={"Colormap": {"ncolors": 32}})
     webbrowser.open("file://" + os.path.abspath("out.html"))
 
     point = mesh(length, height / 2, VOL_or_BND=BND)
