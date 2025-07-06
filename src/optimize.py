@@ -58,7 +58,7 @@ def quad_mesh(size_x: float, size_y: float, nx: int, ny: int) -> ngMesh:
     return mesh
 
 
-def lame_parameters(E: float, nu: float) -> tuple[float, float]:
+def lame_parameters(E, nu):
     lam = E * nu / (1.0 - nu**2)  # plane-stress
     mu = E / (2.0 * (1.0 + nu))
     return lam, mu
@@ -81,6 +81,10 @@ def main() -> None:
     E = 70e9  # Young's modulus
     nu = 0.35  # Poisson's ratio
 
+    rho_0 = 1.0
+    rho_min = 1e-9
+    penalty = 3
+
     use_quad_mesh = False
 
     if use_quad_mesh:
@@ -96,34 +100,55 @@ def main() -> None:
 
     lam, mu = lame_parameters(E, nu)
 
-    fes = VectorH1(mesh, order=2, dirichlet="fix")
-    u = fes.TrialFunction()
-    v = fes.TestFunction()
-    gfu = GridFunction(fes)
+    fes_u = VectorH1(mesh, order=2, dirichlet="fix")
+    u = fes_u.TrialFunction()
+    v = fes_u.TestFunction()
+    u_gf = GridFunction(fes_u)
 
-    Ef = 0.6 + 0.4 * cos(x * 2 * pi / length)
+    fes_rho = L2(mesh, order=0)
+    rho_gf = GridFunction(fes_rho)
 
-    a = BilinearForm(Ef * InnerProduct(stress(strain(u), mu, lam), strain(v)) * dx)
-    a.Assemble()
+    step_param = Parameter(0)
+    density = (
+        0.9 / (0.2 * length) * Norm(x - 0.5 * length - 0.3 * length * sin(2 * pi * step_param / 15))
+        + 0.1
+    )
+    density = IfPos(density - 1, 1.0, density)
 
+    rho_factor = rho_min + rho_gf**penalty * (rho_0 - rho_min)
+
+    a = BilinearForm(
+        InnerProduct(stress(strain(u), rho_factor * mu, rho_factor * lam), strain(v)) * dx
+    )
     f = LinearForm(CoefficientFunction((0, force / (width * height))) * v * ds("force"))
     f.Assemble()
+    free_dofs = fes_u.FreeDofs()
 
-    inv = a.mat.Inverse(freedofs=fes.FreeDofs(), inverse="sparsecholesky")
-    gfu.vec.data = inv * f.vec
+    for step in range(100):
+        step_param.Set(step)
+        rho_gf.Set(density)
 
-    eps_cf = strain(gfu)
-    # von Mises (a.k.a. J2) equivalent strain
-    eps_dev = eps_cf - Trace(eps_cf) / 2 * Id(2)
-    eq_strain = sqrt(2 / 3 * InnerProduct(eps_dev, eps_dev))
+        a.Assemble()
 
-    Draw(eq_strain, mesh, filename="out.html", settings={"Colormap": {"ncolors": 32}})
-    # Draw(gfu, filename="out.html", settings={"Colormap": {"ncolors": 32}})
-    webbrowser.open("file://" + os.path.abspath("out.html"))
+        inv = a.mat.Inverse(freedofs=free_dofs, inverse="sparsecholesky")
+        u_gf.vec.data = inv * f.vec
 
-    point = mesh(length, height / 2, VOL_or_BND=BND)
-    numerical_deflection = gfu(point)[1]
-    print(f"Numerical Y deflection:  {numerical_deflection:.9f} m")
+        print(f"Step {step}")
+
+        eps_cf = strain(u_gf)
+        eps_dev = eps_cf - Trace(eps_cf) / 2 * Id(2)
+        eq_strain = sqrt(2 / 3 * InnerProduct(eps_dev, eps_dev))
+        Draw(
+            eq_strain,
+            mesh,
+            deformation=2 * u_gf,
+            filename="out.html",
+            settings={"Colormap": {"ncolors": 32}},
+        )
+
+        import time
+
+        time.sleep(0.5)
 
 
 if __name__ == "__main__":
