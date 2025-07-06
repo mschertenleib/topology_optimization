@@ -72,11 +72,24 @@ def strain(displacement):
     return Sym(Grad(displacement))
 
 
+def helmholtz_filter(fes, radius):
+    u = fes.TrialFunction()
+    v = fes.TestFunction()
+    A = BilinearForm(u * v * dx + radius**2 * InnerProduct(grad(u), grad(v)) * dx)
+    A.Assemble()
+    A_inv = A.mat.Inverse(freedofs=fes.FreeDofs(), inverse="sparsecholesky")
+
+    M = BilinearForm(u * v * dx)
+    M.Assemble()
+
+    return A_inv, M
+
+
 def main() -> None:
     # NOTE: All values in standard units: m, N, Pa
     length = 0.2
-    height = 0.02
-    width = 0.03
+    height = 0.1
+    width = 0.01
     force = -100.0
     E = 70e9  # Young's modulus
     nu = 0.35  # Poisson's ratio
@@ -84,6 +97,8 @@ def main() -> None:
     rho_0 = 1.0
     rho_min = 1e-9
     penalty = 3
+    radius = 0.005
+    num_steps = 100
 
     use_quad_mesh = False
 
@@ -96,7 +111,7 @@ def main() -> None:
         beam.edges.Min(X).name = "fix"
         beam.edges.Max(X).name = "force"
         geo = OCCGeometry(beam, dim=2)
-        mesh = Mesh(geo.GenerateMesh(maxh=height / 5.0))
+        mesh = Mesh(geo.GenerateMesh(maxh=height / 50.0))
 
     lam, mu = lame_parameters(E, nu)
 
@@ -105,8 +120,31 @@ def main() -> None:
     v = fes_u.TestFunction()
     u_gf = GridFunction(fes_u)
 
+    # Design space (element-wise constant)
     fes_rho = L2(mesh, order=0)
-    rho_gf = GridFunction(fes_rho)
+    rho = GridFunction(fes_rho)
+    rho_filtered = GridFunction(fes_rho)
+
+    # Filter space (continuous)
+    fes_rho_h1 = H1(mesh, order=1)
+    rho_h1 = GridFunction(fes_rho_h1)
+    rho_filtered_h1 = GridFunction(fes_rho_h1)
+
+    A_inv, M = helmholtz_filter(fes_rho_h1, radius)
+
+    density = IfPos(x - 0.1, IfPos(x - 0.11, 0.0, 1.0), 0.0)
+    rho.Set(density)
+
+    rho_h1.Set(rho)
+    rho_filtered_h1.vec.data = A_inv * (M.mat * rho_h1.vec)
+    rho_filtered.Set(rho_filtered_h1)
+
+    Draw(
+        rho_filtered,
+        filename="out.html",
+        settings={"Colormap": {"ncolors": 32}},
+    )
+    exit()
 
     step_param = Parameter(0)
     density = (
@@ -115,7 +153,7 @@ def main() -> None:
     )
     density = IfPos(density - 1, 1.0, density)
 
-    rho_factor = rho_min + rho_gf**penalty * (rho_0 - rho_min)
+    rho_factor = rho_min + rho**penalty * (rho_0 - rho_min)
 
     a = BilinearForm(
         InnerProduct(stress(strain(u), rho_factor * mu, rho_factor * lam), strain(v)) * dx
@@ -124,9 +162,9 @@ def main() -> None:
     f.Assemble()
     free_dofs = fes_u.FreeDofs()
 
-    for step in range(100):
+    for step in range(num_steps):
         step_param.Set(step)
-        rho_gf.Set(density)
+        rho.Set(density)
 
         a.Assemble()
 
