@@ -103,7 +103,7 @@ def main() -> None:
     use_quad_mesh = False
 
     if use_quad_mesh:
-        ny = 5
+        ny = 50
         nx = int(length / height * ny)
         mesh = Mesh(quad_mesh(size_x=length, size_y=height, nx=nx, ny=ny))
     else:
@@ -132,28 +132,11 @@ def main() -> None:
 
     A_inv, M = helmholtz_filter(fes_rho_h1, radius)
 
-    density = IfPos(x - 0.1, IfPos(x - 0.11, 0.0, 1.0), 0.0)
-    rho.Set(density)
-
-    rho_h1.Set(rho)
-    rho_filtered_h1.vec.data = A_inv * (M.mat * rho_h1.vec)
-    rho_filtered.Set(rho_filtered_h1)
-
-    Draw(
-        rho_filtered,
-        filename="out.html",
-        settings={"Colormap": {"ncolors": 32}},
-    )
-    exit()
-
     step_param = Parameter(0)
-    density = (
-        0.9 / (0.2 * length) * Norm(x - 0.5 * length - 0.3 * length * sin(2 * pi * step_param / 15))
-        + 0.1
-    )
-    density = IfPos(density - 1, 1.0, density)
+    center = 0.5 * length + 0.3 * length * sin(2 * pi * step_param / 15)
+    density = IfPos(x - center + 0.1 * length, IfPos(x - center - 0.1 * length, 1.0, 0.1), 1.0)
 
-    rho_factor = rho_min + rho**penalty * (rho_0 - rho_min)
+    rho_factor = rho_min + rho_filtered**penalty * (rho_0 - rho_min)
 
     a = BilinearForm(
         InnerProduct(stress(strain(u), rho_factor * mu, rho_factor * lam), strain(v)) * dx
@@ -165,6 +148,10 @@ def main() -> None:
     for step in range(num_steps):
         step_param.Set(step)
         rho.Set(density)
+
+        rho_h1.Set(rho)
+        rho_filtered_h1.vec.data = A_inv * (M.mat * rho_h1.vec)
+        rho_filtered.Set(rho_filtered_h1)
 
         a.Assemble()
 
