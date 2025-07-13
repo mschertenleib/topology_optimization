@@ -1,12 +1,10 @@
-import os.path
-import webbrowser
-
 from netgen.meshing import Element1D, Element2D, FaceDescriptor
 from netgen.meshing import Mesh as ngMesh
 from netgen.meshing import MeshPoint, Pnt
 from netgen.occ import OCCGeometry, Rectangle, X
 from ngsolve import *
 from ngsolve.webgui import Draw
+from tqdm import tqdm
 
 
 def quad_mesh(size_x: float, size_y: float, nx: int, ny: int) -> ngMesh:
@@ -85,23 +83,44 @@ def helmholtz_filter(fes, radius):
     return A_inv, M
 
 
+# FIXME
+def optimality_criterion(x, dc, dV, move, volume_fraction, mesh):
+    x_lower = x - move
+    x_upper = x + move
+    sensitivity_frac = -dc / dV
+    oc_constant = x * sqrt(IfPos(sensitivity_frac, sensitivity_frac, 0))
+    mesh_volume = Integrate(1 * dx, mesh)
+    lm_lower = 0
+    lm_upper = Integrate(oc_constant * dx) / mesh_volume / volume_fraction
+    while (lm_upper - lm_lower) / (lm_upper + lm_lower) > 1e-4:
+        lm_middle = 0.5 * (lm_lower + lm_upper)
+        x = oc_constant / lm_middle
+        x = IfPos(x - 1.0, 1.0, IfPos(-x, 0.0, x))
+        x = IfPos(x - x_upper, x_upper, IfPos(x_lower - x, x_lower, x))
+        if Integrate(x * dx, mesh) / mesh_volume > volume_fraction:
+            lm_lower = lm_middle
+        else:
+            lm_upper = lm_middle
+
+    return x
+
+
 def main() -> None:
     # NOTE: All values in standard units: m, N, Pa
     length = 0.2
     height = 0.1
     width = 0.01
     force = -100.0
-    E = 70e9  # Young's modulus
+    E_0 = 70e9  # Young's modulus of solid
+    E_min = 1e-9 * E_0  # Young's modulus of void
     nu = 0.35  # Poisson's ratio
-
-    rho_0 = 1.0
-    rho_min = 1e-9
     penalty = 3
-    radius = 0.005
+    filter_radius = 0.005
     num_steps = 100
 
     use_quad_mesh = False
 
+    # Mesh
     if use_quad_mesh:
         ny = 50
         nx = int(length / height * ny)
@@ -113,13 +132,6 @@ def main() -> None:
         geo = OCCGeometry(beam, dim=2)
         mesh = Mesh(geo.GenerateMesh(maxh=height / 50.0))
 
-    lam, mu = lame_parameters(E, nu)
-
-    fes_u = VectorH1(mesh, order=2, dirichlet="fix")
-    u = fes_u.TrialFunction()
-    v = fes_u.TestFunction()
-    u_gf = GridFunction(fes_u)
-
     # Design space (element-wise constant)
     fes_rho = L2(mesh, order=0)
     rho = GridFunction(fes_rho)
@@ -130,50 +142,65 @@ def main() -> None:
     rho_h1 = GridFunction(fes_rho_h1)
     rho_filtered_h1 = GridFunction(fes_rho_h1)
 
-    A_inv, M = helmholtz_filter(fes_rho_h1, radius)
+    E = E_min + rho_filtered**penalty * (E_0 - E_min)
+    lam, mu = lame_parameters(E, nu)
 
+    A_inv, M = helmholtz_filter(fes_rho_h1, filter_radius)
+
+    # Displacement space
+    fes_u = VectorH1(mesh, order=2, dirichlet="fix")
+    u = fes_u.TrialFunction()
+    v = fes_u.TestFunction()
+    u_gf = GridFunction(fes_u)
+
+    # Linear elasticity system
+    a = BilinearForm(InnerProduct(stress(strain(u), mu, lam), strain(v)).Compile() * dx)
+    f = LinearForm(CoefficientFunction((0, force / (width * height))) * v * ds("force"))
+    f.Assemble()
+
+    free_dofs = fes_u.FreeDofs()
+
+    # NOTE: temporary explicit density
     step_param = Parameter(0)
     center = 0.5 * length + 0.3 * length * sin(2 * pi * step_param / 15)
     density = IfPos(x - center + 0.1 * length, IfPos(x - center - 0.1 * length, 1.0, 0.1), 1.0)
 
-    rho_factor = rho_min + rho_filtered**penalty * (rho_0 - rho_min)
+    with TaskManager():
+        for step in tqdm(range(num_steps)):
+            step_param.Set(step)
+            rho.Set(density)
 
-    a = BilinearForm(
-        InnerProduct(stress(strain(u), rho_factor * mu, rho_factor * lam), strain(v)) * dx
-    )
-    f = LinearForm(CoefficientFunction((0, force / (width * height))) * v * ds("force"))
-    f.Assemble()
-    free_dofs = fes_u.FreeDofs()
+            rho_h1.Set(rho)
+            rho_filtered_h1.vec.data = A_inv * (M.mat * rho_h1.vec)
+            rho_filtered.Set(rho_filtered_h1)
 
-    for step in range(num_steps):
-        step_param.Set(step)
-        rho.Set(density)
+            a.Assemble()
 
-        rho_h1.Set(rho)
-        rho_filtered_h1.vec.data = A_inv * (M.mat * rho_h1.vec)
-        rho_filtered.Set(rho_filtered_h1)
+            inv = a.mat.Inverse(freedofs=free_dofs, inverse="sparsecholesky")
+            u_gf.vec.data = inv * f.vec
 
-        a.Assemble()
+            if True:
+                Draw(
+                    E / E_0,
+                    mesh,
+                    filename="out.html",
+                    settings={"Colormap": {"ncolors": 32}},
+                )
+            else:
+                eps_cf = strain(u_gf)
+                eps_dev = eps_cf - Trace(eps_cf) / 2 * Id(2)
+                eq_strain = sqrt(2 / 3 * InnerProduct(eps_dev, eps_dev))
+                Draw(
+                    eq_strain,
+                    mesh,
+                    deformation=2 * u_gf,
+                    filename="out.html",
+                    settings={"Colormap": {"ncolors": 32}},
+                )
 
-        inv = a.mat.Inverse(freedofs=free_dofs, inverse="sparsecholesky")
-        u_gf.vec.data = inv * f.vec
+            import time
 
-        print(f"Step {step}")
-
-        eps_cf = strain(u_gf)
-        eps_dev = eps_cf - Trace(eps_cf) / 2 * Id(2)
-        eq_strain = sqrt(2 / 3 * InnerProduct(eps_dev, eps_dev))
-        Draw(
-            eq_strain,
-            mesh,
-            deformation=2 * u_gf,
-            filename="out.html",
-            settings={"Colormap": {"ncolors": 32}},
-        )
-
-        import time
-
-        time.sleep(0.5)
+            time.sleep(0.5)
 
 
 if __name__ == "__main__":
