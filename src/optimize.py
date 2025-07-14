@@ -1,7 +1,7 @@
 from netgen.meshing import Element1D, Element2D, FaceDescriptor
 from netgen.meshing import Mesh as ngMesh
 from netgen.meshing import MeshPoint, Pnt
-from netgen.occ import OCCGeometry, Rectangle, X
+from netgen.occ import *
 from ngsolve import *
 from ngsolve.webgui import Draw
 from tqdm import tqdm
@@ -119,12 +119,54 @@ def main() -> None:
     num_steps = 100
 
     use_quad_mesh = False
+    use_bracket = False
 
     # Mesh
     if use_quad_mesh:
         ny = 50
         nx = int(length / height * ny)
         mesh = Mesh(quad_mesh(size_x=length, size_y=height, nx=nx, ny=ny))
+    elif use_bracket:
+        r1 = 0.045
+        r2 = 0.03
+        r1_hole = 0.6 * r1
+        r2_hole = 0.6 * r2
+        length = 0.25
+        rod_p1 = (r1 * 0.4, r1 * 0.85)
+        rod_p2 = (r1 * 0.9, r1 * 0.1)
+        rod_p3 = (length - r2 * 0.9, r2 * 0.1)
+        rod_p4 = (length - r2 * 0.4, r2 * 0.85)
+        eye_1 = Circle(Pnt(0, 0), r=r1).Face()
+        eye_2 = Circle(Pnt(length, 0), r=r2).Face()
+        hole_1 = Circle(Pnt(0, 0), r=r1_hole).Face()
+        hole_2 = Circle(Pnt(length, 0), r=r2_hole).Face()
+        rod_1 = (
+            MoveTo(*rod_p1).LineTo(*rod_p2).LineTo(*rod_p3).LineTo(*rod_p4).Close().Face()
+            - eye_1
+            - eye_2
+        )
+        rod_2 = (
+            (
+                MoveTo(rod_p1[0], -rod_p1[1])
+                .LineTo(rod_p2[0], -rod_p2[1])
+                .LineTo(rod_p3[0], -rod_p3[1])
+                .LineTo(rod_p4[0], -rod_p4[1])
+                .Close()
+                .Reverse()
+                .Face()
+            )
+            - eye_1
+            - eye_2
+        )
+        bracket = Glue([eye_1 - hole_1, eye_2 - hole_2, rod_1, rod_2])
+        # bracket.edges.Min(X).name = "fix"
+        # bracket.edges.Max(X).name = "force"
+        hole_1.edges.name = "fix"
+        hole_2.edges.name = "force"
+        geo = OCCGeometry(bracket, dim=2)
+        mesh = Mesh(geo.GenerateMesh(maxh=0.004))
+        # Draw(mesh, filename="out.html")
+        # exit()
     else:
         beam = Rectangle(length, height).Face()
         beam.edges.Min(X).name = "fix"
@@ -163,7 +205,7 @@ def main() -> None:
     # NOTE: temporary explicit density
     step_param = Parameter(0)
     center = 0.5 * length + 0.3 * length * sin(2 * pi * step_param / 15)
-    density = IfPos(x - center + 0.1 * length, IfPos(x - center - 0.1 * length, 1.0, 0.1), 1.0)
+    density = IfPos(x - center + 0.03 * length, IfPos(x - center - 0.03 * length, 1.0, 0.1), 1.0)
 
     with TaskManager():
         for step in tqdm(range(num_steps)):
