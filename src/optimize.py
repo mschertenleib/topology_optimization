@@ -1,6 +1,7 @@
 from netgen.meshing import Element1D, Element2D, FaceDescriptor
 from netgen.meshing import Mesh as ngMesh
-from netgen.meshing import MeshPoint, Pnt
+from netgen.meshing import MeshPoint
+from netgen.meshing import Pnt as ngPnt
 from netgen.occ import *
 from ngsolve import *
 from ngsolve.webgui import Draw
@@ -16,7 +17,7 @@ def quad_mesh(size_x: float, size_y: float, nx: int, ny: int) -> ngMesh:
         for ix in range(nx + 1):
             x = ix / nx * size_x
             y = iy / ny * size_y
-            point_ids.append(mesh.Add(MeshPoint(Pnt(x, y, 0))))
+            point_ids.append(mesh.Add(MeshPoint(ngPnt(x, y, 0))))
 
     # Region
     region = mesh.AddRegion("rectangle", dim=2)
@@ -54,6 +55,45 @@ def quad_mesh(size_x: float, size_y: float, nx: int, ny: int) -> ngMesh:
     mesh.Compress()
 
     return mesh
+
+
+def bracket() -> ngMesh:
+    r1 = 0.045
+    r2 = 0.03
+    r1_hole = 0.6 * r1
+    r2_hole = 0.6 * r2
+    length = 0.25
+    rod_p1 = (r1 * 0.4, r1 * 0.85)
+    rod_p2 = (r1 * 0.9, r1 * 0.1)
+    rod_p3 = (length - r2 * 0.9, r2 * 0.1)
+    rod_p4 = (length - r2 * 0.4, r2 * 0.85)
+    eye_1 = Circle(Pnt(0, 0), r=r1).Face()
+    eye_2 = Circle(Pnt(length, 0), r=r2).Face()
+    hole_1 = Circle(Pnt(0, 0), r=r1_hole).Face()
+    hole_2 = Circle(Pnt(length, 0), r=r2_hole).Face()
+    rod_1 = (
+        MoveTo(*rod_p1).LineTo(*rod_p2).LineTo(*rod_p3).LineTo(*rod_p4).Close().Face()
+        - eye_1
+        - eye_2
+    )
+    rod_2 = (
+        (
+            MoveTo(rod_p1[0], -rod_p1[1])
+            .LineTo(rod_p2[0], -rod_p2[1])
+            .LineTo(rod_p3[0], -rod_p3[1])
+            .LineTo(rod_p4[0], -rod_p4[1])
+            .Close()
+            .Reverse()
+            .Face()
+        )
+        - eye_1
+        - eye_2
+    )
+    bracket = Glue([eye_1 - hole_1, eye_2 - hole_2, rod_1, rod_2])
+    hole_1.edges.name = "fix"
+    hole_2.edges.name = "force"
+    geo = OCCGeometry(bracket, dim=2)
+    return geo.GenerateMesh(maxh=0.004)
 
 
 def lame_parameters(E, nu):
@@ -127,46 +167,7 @@ def main() -> None:
         nx = int(length / height * ny)
         mesh = Mesh(quad_mesh(size_x=length, size_y=height, nx=nx, ny=ny))
     elif use_bracket:
-        r1 = 0.045
-        r2 = 0.03
-        r1_hole = 0.6 * r1
-        r2_hole = 0.6 * r2
-        length = 0.25
-        rod_p1 = (r1 * 0.4, r1 * 0.85)
-        rod_p2 = (r1 * 0.9, r1 * 0.1)
-        rod_p3 = (length - r2 * 0.9, r2 * 0.1)
-        rod_p4 = (length - r2 * 0.4, r2 * 0.85)
-        eye_1 = Circle(Pnt(0, 0), r=r1).Face()
-        eye_2 = Circle(Pnt(length, 0), r=r2).Face()
-        hole_1 = Circle(Pnt(0, 0), r=r1_hole).Face()
-        hole_2 = Circle(Pnt(length, 0), r=r2_hole).Face()
-        rod_1 = (
-            MoveTo(*rod_p1).LineTo(*rod_p2).LineTo(*rod_p3).LineTo(*rod_p4).Close().Face()
-            - eye_1
-            - eye_2
-        )
-        rod_2 = (
-            (
-                MoveTo(rod_p1[0], -rod_p1[1])
-                .LineTo(rod_p2[0], -rod_p2[1])
-                .LineTo(rod_p3[0], -rod_p3[1])
-                .LineTo(rod_p4[0], -rod_p4[1])
-                .Close()
-                .Reverse()
-                .Face()
-            )
-            - eye_1
-            - eye_2
-        )
-        bracket = Glue([eye_1 - hole_1, eye_2 - hole_2, rod_1, rod_2])
-        # bracket.edges.Min(X).name = "fix"
-        # bracket.edges.Max(X).name = "force"
-        hole_1.edges.name = "fix"
-        hole_2.edges.name = "force"
-        geo = OCCGeometry(bracket, dim=2)
-        mesh = Mesh(geo.GenerateMesh(maxh=0.004))
-        # Draw(mesh, filename="out.html")
-        # exit()
+        mesh = Mesh(bracket())
     else:
         beam = Rectangle(length, height).Face()
         beam.edges.Min(X).name = "fix"
@@ -187,8 +188,6 @@ def main() -> None:
     E = E_min + rho_filtered**penalty * (E_0 - E_min)
     lam, mu = lame_parameters(E, nu)
 
-    A_inv, M = helmholtz_filter(fes_rho_h1, filter_radius)
-
     # Displacement space
     fes_u = VectorH1(mesh, order=2, dirichlet="fix")
     u = fes_u.TrialFunction()
@@ -201,6 +200,25 @@ def main() -> None:
     f.Assemble()
 
     free_dofs = fes_u.FreeDofs()
+
+    A_inv, M = helmholtz_filter(fes_rho_h1, filter_radius)
+
+    # NOTE: this is ∇_ρ V, where ρ is the "physical" density used in the SIMP interpolation
+    # formula (so the filtered and projected density).
+    # This corresponds to x^hat in the top99neo paper.
+    volume_sensitivity = GridFunction(fes_rho)
+    volume_sensitivity.vec.FV().NumPy()[:] = Integrate(
+        CoefficientFunction(1), mesh, element_wise=True
+    ).NumPy()
+    # FIXME: we re-use the rho_h1 GridFunction
+    rho_h1.Set(volume_sensitivity)
+    rho_filtered_h1.vec.data = A_inv * (M.mat * rho_h1.vec)
+    volume_sensitivity.Set(rho_filtered_h1)
+
+    # c = u^T*K*u
+    # ∇_ρ(c) = -u^T*∇_ρ(K)*u,    where K=E*K0
+    # ∇_ρ(c) = -penal*ρ**(penal-1)*(E0-Emin)) * u^T*K0*u
+    # Actually, can we symbolically derive the sensitivities?
 
     # NOTE: temporary explicit density
     step_param = Parameter(0)
